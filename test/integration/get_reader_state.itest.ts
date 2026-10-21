@@ -14,12 +14,18 @@ const closeReaders = () =>
 /**
  * Double-clicks (synthetic mousedown with detail 2) the first word longer than 3 characters on the
  * given 1-based page of the active reader, which selects that word. Returns the word.
+ * pdf.js renders a page's text layer some time after the page becomes current, so wait for it.
  */
 const doubleClickWord = (pageNumber: number) =>
   zeval(`const r = Zotero.Reader.getByTabID(Zotero.getMainWindow().Zotero_Tabs.selectedID);
     const w = r._internalReader._primaryView._iframeWindow, d = w.document;
-    const span = [...d.querySelectorAll('.page[data-page-number="${pageNumber}"] .textLayer span')]
-      .find((s) => /^[A-Za-z]{4,}$/.test(s.textContent));
+    let span;
+    for (let i = 0; i < 100 && !span; i++) {
+      span = [...d.querySelectorAll('.page[data-page-number="${pageNumber}"] .textLayer span')]
+        .find((s) => /^[A-Za-z]{4,}$/.test(s.textContent));
+      if (!span) await Zotero.Promise.delay(100);
+    }
+    if (!span) throw new Error("page ${pageNumber}'s text layer never rendered");
     const rc = span.getBoundingClientRect();
     const opts = { bubbles: true, cancelable: true, clientX: rc.left + rc.width / 2, clientY: rc.top + rc.height / 2, button: 0, buttons: 1, detail: 2 };
     span.dispatchEvent(new w.MouseEvent("mousedown", Cu.cloneInto(opts, w)));
@@ -41,6 +47,17 @@ const state = async () => {
   const result = await callTool("get_reader_state");
   expect(result.isError).toBeFalsy();
   return result.structuredContent;
+};
+
+/** The reader updates its selection state asynchronously after a click: poll until `ok`, then return the state. */
+const stateWhen = async (ok: (s: any) => boolean, timeoutMs = 10_000) => {
+  const deadline = Date.now() + timeoutMs;
+  let s = await state();
+  while (!ok(s) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+    s = await state();
+  }
+  return s;
 };
 
 describe("get_reader_state in a real Zotero", () => {
@@ -85,10 +102,10 @@ describe("get_reader_state in a real Zotero", () => {
   it("returns the selected text, and null again once the selection is dismissed", async () => {
     const word = await doubleClickWord(2);
     expect(word).toMatch(/^[A-Za-z]{4,}$/);
-    expect((await state()).selectedText).toBe(word);
+    expect((await stateWhen((s) => s.selectedText !== null)).selectedText).toBe(word);
 
     await clickMargin(2);
-    expect((await state()).selectedText).toBeNull();
+    expect((await stateWhen((s) => s.selectedText === null)).selectedText).toBeNull();
   });
 
   it("returns an empty state again when the library tab is selected", async () => {
