@@ -59,6 +59,8 @@ export type UndoContext = {
   db: Db;
   /** Forget an owned pair, effective with the undo's commit. */
   disownTag(t: OwnedTag): Promise<void>;
+  /** Own a pair (again) under the change being undone, effective with the undo's commit. */
+  ownTag(t: OwnedTag): Promise<void>;
   log(message: string): void;
 };
 
