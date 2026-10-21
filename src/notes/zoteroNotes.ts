@@ -21,14 +21,25 @@ export function embeddedImageAttachment(libraryID: number, key: string): Zotero.
 
 /**
  * Zotero.Attachments.importEmbeddedImage without its own transaction: call inside recordWrite's
- * body or an undo handler. The note must be saved. Returns the new attachment.
+ * body or an undo handler. The note must be saved. Returns the new attachment, created with `key`
+ * if given (so the note's HTML can reference it before the import, see newAttachmentKey).
  */
-export async function importEmbeddedImage(note: Zotero.Item, bytes: Uint8Array, contentType: string): Promise<Zotero.Item> {
+export async function importEmbeddedImage(
+  note: Zotero.Item,
+  bytes: Uint8Array,
+  contentType: string,
+  key?: string,
+): Promise<Zotero.Item> {
   const ext = EXTENSIONS[contentType];
   if (!ext) throw new Error(`Unsupported embedded image content type '${contentType}'`);
   const filename = `image.${ext}`;
   const att = new Zotero.Item("attachment");
   att.libraryID = note.libraryID;
+  if (key !== undefined) {
+    // As Zotero.Annotations.saveFromJSON does for new items with a known key.
+    att.key = key;
+    await (att as any).loadPrimaryData();
+  }
   att.parentID = note.id;
   att.attachmentLinkMode = Zotero.Attachments.LINK_MODE_EMBEDDED_IMAGE;
   att.attachmentPath = "storage:" + filename;
@@ -37,6 +48,14 @@ export async function importEmbeddedImage(note: Zotero.Item, bytes: Uint8Array, 
   const dir = await (Zotero.Attachments as any).createDirectoryForItem(att);
   await IOUtils.write(PathUtils.join(dir as string, filename), bytes);
   return att;
+}
+
+/** A fresh item key not used in the library. */
+export function newAttachmentKey(libraryID: number): string {
+  for (;;) {
+    const key: string = (Zotero as any).DataObjectUtilities.generateKey();
+    if (!Zotero.Items.getByLibraryAndKey(libraryID, key)) return key;
+  }
 }
 
 function toBase64(bytes: Uint8Array): string {

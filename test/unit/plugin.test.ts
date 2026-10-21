@@ -131,6 +131,7 @@ describe("plugin lifecycle", () => {
     expect(Z.Server.responseCodes[202]).toBe("Accepted");
     expect(Z.Server.responseCodes[405]).toBe("Method Not Allowed");
     expect(Z.Server.responseCodes[413]).toBe("Payload Too Large");
+    expect(Z.Server.responseCodes[429]).toBe("Too Many Requests");
     await p.shutdown();
     expect(Z.Server.responseCodes).toEqual({ 200: "OK", 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Internal Server Error" });
   });

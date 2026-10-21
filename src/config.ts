@@ -13,3 +13,5 @@ export const WRITES_PER_MINUTE_PREF = `${PREF_PREFIX}writesPerMinute`;
 export const DEFAULT_WRITES_PER_MINUTE = 30;
 /** Tag put on every note the plugin creates (SPEC Hard rule 3). */
 export const LLM_TAG = "[LLM]";
+/** POST an image (PNG/JPEG bytes) here to use it in a note as ![caption](image:<imageId>). */
+export const IMAGE_PATH = `${MCP_PATH}/image`;

@@ -11,7 +11,7 @@ export function zotero() {
 /** Any HTTP request to the headless Zotero. Adds the bearer token unless `token: null`. */
 export function request(
   path: string,
-  opts: { method?: string; headers?: Record<string, string>; body?: string; token?: string | null } = {},
+  opts: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array; token?: string | null } = {},
 ): Promise<RawResponse> {
   const { port, token } = zotero();
   const headers: Record<string, string> = { ...opts.headers };
