@@ -7,6 +7,8 @@
 - `undo` (default: last not-yet-undone change; or by `changeId`) for created objects
 - `list_changes` tool (recent changes with id, tool, summary, undone flag) so the agent can pick a `changeId`
 
+A write rate limit (SPEC: Rate limit; default 30/min, pref-configurable) applies to every write tool via the tool registry; over the cap the call fails with no side effects.
+
 Ownership checks live in one pure module (unit-tested) that every later write ticket uses.
 
 **Blocked by:** 01, 03
@@ -14,4 +16,5 @@ Ownership checks live in one pure module (unit-tested) that every later write ti
 **Status:** ready-for-agent
 
 - [ ] Unit tests: ownership checks (owned vs foreign item, owned vs pre-existing tag pair), change log / undo ordering, undo of an already-undone change refused
+- [ ] Unit tests: rate limiter (window, cap, reads unaffected)
 - [ ] Trying to trash a user's item fails with a clear error and changes nothing

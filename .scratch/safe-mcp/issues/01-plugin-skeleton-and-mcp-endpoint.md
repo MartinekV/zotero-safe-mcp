@@ -8,5 +8,6 @@
 
 - [ ] `npm run build` produces `zotero-safe-mcp.xpi`; `npm test` runs unit tests
 - [ ] Unit tests: JSON-RPC handling (valid/invalid requests, batch rejected or handled, notifications get 202/no body, unknown method → -32601, bad params → -32602), auth (missing/wrong/right token, constant-time compare)
+- [ ] Requests with an `Origin` header are rejected (403) on every endpoint (SPEC: Auth)
 - [ ] Endpoints are unregistered on plugin shutdown
 - [ ] README with setup steps (SPEC: Setup), AGPL-3.0 LICENSE, credit to llm-for-zotero
