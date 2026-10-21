@@ -172,6 +172,9 @@ To cut access quickly: `sbx policy rm network --resource localhost:23119`.
 
 - Can `get_reader_state` read the current selection from the reader
   reliably?
+  **Answered (ticket 11):** yes, from the reader's internal selection state
+  (`_selectionRanges` / selection popup), verified in Zotero 10.0.6; it is
+  cleared when the selection is dismissed.
 - Does trashing an annotation item behave like trashing a note (restorable),
   or is it deleted outright? If the latter, keep a copy for `undo`.
 - Exact HTML Zotero 10's note editor expects for math, citations and
