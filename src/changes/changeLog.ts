@@ -178,7 +178,10 @@ export function createChangeLog(opts: ChangeLogOptions) {
         if (change.undone) throw new ToolError(`Change ${id} (${change.summary}) is already undone.`);
         const handler = handlers.get(change.kind);
         if (!handler) throw new ToolError(`Change ${id} (${change.tool}) cannot be undone.`);
-        const summary = await handler.undo(change, { db, disownTag, log });
+        const ownTag = async (g: OwnedTag) => {
+          await q(`INSERT OR REPLACE INTO ${SCHEMA}.owned_tags VALUES (?,?,?,?,?)`, [g.libraryID, g.itemKey, g.tag, id, now()]);
+        };
+        const summary = await handler.undo(change, { db, disownTag, ownTag, log });
         await q(`UPDATE ${SCHEMA}.changes SET undone = 1, undoneAt = ? WHERE changeId = ?`, [now(), id]);
         return { changeId: id, tool: change.tool, summary };
       });
