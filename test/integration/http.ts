@@ -9,6 +9,8 @@ export type RawResponse = {
   statusText: string;
   headers: Record<string, string | string[] | undefined>;
   body: string;
+  /** The raw response bytes (body is their UTF-8 decoding). */
+  bytes: Buffer;
 };
 
 export function rawRequest(
@@ -32,13 +34,14 @@ export function rawRequest(
             statusText: res.statusMessage ?? "",
             headers: res.headers,
             body: Buffer.concat(chunks).toString("utf8"),
+            bytes: Buffer.concat(chunks),
           }),
         );
       },
     );
     req.on("error", (e: NodeJS.ErrnoException) => {
       if (e.code === "ECONNRESET" || /socket hang up/.test(e.message)) {
-        resolve({ answered: false, status: 0, statusText: "", headers: {}, body: "" });
+        resolve({ answered: false, status: 0, statusText: "", headers: {}, body: "", bytes: Buffer.alloc(0) });
       } else reject(e);
     });
     req.setTimeout(30_000, () => req.destroy(new Error(`timeout: ${path}`)));

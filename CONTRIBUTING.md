@@ -82,7 +82,9 @@ to know (details in the exploration notes):
   without a reply. Never set `allowRequestsFromUnsafeWebContent`.
 - `application/json` arrives parsed in `req.data`; other types arrive as an `nsIInputStream`.
 - Reason phrases for 202/401/405/413/415 are added by `plugin.ts`.
-- String bodies are sent UTF-8 encoded; binary responses need the `_requestFinished` patch.
+- String bodies are sent UTF-8 encoded. To send a file's raw bytes, return an empty body with the real
+  `Content-Length` and `options: { [FILE_PATH_OPTION]: path }` (`src/http/binaryFileResponse.ts`); the patch
+  installed by `hooks/binary-file-responses.ts` only acts on paths under `/safe-mcp/pdf/` (widen `pathPrefix` there).
 
 ## Adding startup/shutdown work
 
