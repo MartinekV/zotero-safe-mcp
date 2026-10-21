@@ -15,6 +15,7 @@ const EXTRA_RESPONSE_CODES: Record<number, string> = {
   405: "Method Not Allowed",
   413: "Payload Too Large",
   415: "Unsupported Media Type",
+  429: "Too Many Requests",
 };
 
 export type StartupInfo = { id: string; version: string; rootURI: string };

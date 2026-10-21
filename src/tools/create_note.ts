@@ -1,7 +1,7 @@
 import { LLM_TAG } from "../config";
 import { changeLog } from "../changes";
 import { markdownToNoteHtml } from "../notes/markdownToNoteHtml";
-import { noteLookups } from "../notes/zoteroLookups";
+import { noteLookups, withImages } from "../notes/zoteroLookups";
 import { defineTool, ToolError } from "../registry/types";
 import { KEY_PATTERN, libraryID, requireCollection, requireItem } from "../zotero/library";
 
@@ -12,7 +12,8 @@ export default defineTool<Args>({
   description:
     "Create a Zotero note from Markdown, either as a child note of an item (parentItemKey) or as a standalone note " +
     "in a collection (collectionKey); give exactly one. Supports headings, emphasis, lists, links, quotes, code, " +
-    "tables, $math$ / $$display math$$ and [@itemKey] citations of library items (unknown keys fail the call). " +
+    "tables, $math$ / $$display math$$, [@itemKey] citations of library items (unknown keys fail the call) and " +
+    "![caption](image:<imageId>) images uploaded with POST /safe-mcp/image (PNG/JPEG, each imageId works once). " +
     `The note is tagged ${LLM_TAG}. Returns the noteKey and a changeId for undo.`,
   write: true,
   inputSchema: {
@@ -43,7 +44,8 @@ export default defineTool<Args>({
       requireCollection(collectionKey!);
       where = `in collection ${collectionKey}`;
     }
-    const html = await markdownToNoteHtml(markdown, noteLookups());
+    const lookups = noteLookups();
+    const html = await markdownToNoteHtml(markdown, lookups);
 
     const { changeId, result } = await changeLog().recordWrite({ tool: "create_note", args }, async (w) => {
       const note = new Zotero.Item("note");
@@ -53,11 +55,13 @@ export default defineTool<Args>({
       note.setNote(html);
       note.addTag(LLM_TAG, 0);
       await note.save();
+      const imageKeys = await lookups.importImages(note);
       const title = note.getNoteTitle();
       w.ownObject({ libraryID: L, itemKey: note.key, kind: "note" });
-      w.summary = `Created note ${note.key} "${title}" ${where}`;
-      return { noteKey: note.key, title };
+      w.summary = `Created note ${note.key} "${title}" ${where}${withImages(imageKeys)}`;
+      return { noteKey: note.key, title, ...(imageKeys.length ? { imageKeys } : {}) };
     });
+    lookups.consumeUploads();
     return { changeId, ...result };
   },
 });

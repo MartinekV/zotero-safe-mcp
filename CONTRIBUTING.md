@@ -25,6 +25,7 @@ src/
   undo/*.ts               one undo handler per change kind ┘
   changes/                change log + ownership registry (safe-mcp.sqlite attached to Zotero.DB), trash helpers
   ownership/              pure ownership checks, write rate limiter
+  images/                 POST /safe-mcp/image uploads: PNG/JPEG sniffing + size, in-memory store with caps
   notes/                  Markdown ↔ note HTML; zoteroLookups.ts = citation/image lookups for create/edit_note
                           noteVersions.ts = edit_note's version save/restore; zoteroNotes.ts = embedded images
                           (importEmbeddedImage without its own transaction, for use inside recordWrite)
@@ -148,7 +149,7 @@ to know (details in the exploration notes):
   invalid JSON before the handler runs. It drops browser requests (UA `Mozilla/…` or any `Origin`)
   without a reply. Never set `allowRequestsFromUnsafeWebContent`.
 - `application/json` arrives parsed in `req.data`; other types arrive as an `nsIInputStream`.
-- Reason phrases for 202/401/405/413/415 are added by `plugin.ts`.
+- Reason phrases for 202/401/405/413/415/429 are added by `plugin.ts`.
 - String bodies are sent UTF-8 encoded. To send a file's raw bytes, return an empty body with the real
   `Content-Length` and `options: { [FILE_PATH_OPTION]: path }` (`src/http/binaryFileResponse.ts`); the patch
   installed by `hooks/binary-file-responses.ts` only acts on paths under `/safe-mcp/pdf/` (widen `pathPrefix` there).

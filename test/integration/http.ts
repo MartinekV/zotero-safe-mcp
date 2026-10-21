@@ -16,10 +16,10 @@ export type RawResponse = {
 export function rawRequest(
   port: number,
   path: string,
-  opts: { method?: string; headers?: Record<string, string>; body?: string } = {},
+  opts: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array } = {},
 ): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
-    const body = opts.body === undefined ? undefined : Buffer.from(opts.body, "utf8");
+    const body = opts.body === undefined ? undefined : typeof opts.body === "string" ? Buffer.from(opts.body, "utf8") : Buffer.from(opts.body);
     const headers: Record<string, string | number> = { "User-Agent": "safe-mcp-integration-test", ...opts.headers };
     if (body) headers["Content-Length"] = body.length;
     const req = httpRequest(
