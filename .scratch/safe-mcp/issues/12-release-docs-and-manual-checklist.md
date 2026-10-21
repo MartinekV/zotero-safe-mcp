@@ -8,3 +8,7 @@
 
 - [ ] `npm run build && npm test` green
 - [ ] Every reused file carries a header naming its llm-for-zotero source file
+
+## Comments
+
+- From ticket 04: the selection case in `test/integration/get_reader_state.itest.ts` (ticket 11) is flaky (~1 in 3 fails). Make it deterministic.
