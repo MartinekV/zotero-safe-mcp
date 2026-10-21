@@ -5,7 +5,9 @@ export default defineTool<{ changeId?: string }>({
   name: "undo",
   description:
     "Reverse one of this plugin's changes: by default the most recent one not yet undone, or the one with changeId " +
-    "(see list_changes). Created notes, highlights and papers go to the trash, trashed items are restored. " +
+    "(see list_changes). Created notes, highlights and papers go to the trash, trashed items are restored, " +
+    "added tags are removed and removed tags put back, edited notes get their previous version back (refused if " +
+    "the note was changed in Zotero since). " +
     "A change can be undone once; undo itself cannot be undone.",
   write: true,
   inputSchema: {

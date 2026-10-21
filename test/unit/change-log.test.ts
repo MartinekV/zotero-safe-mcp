@@ -151,6 +151,26 @@ describe("undo", () => {
     await expect(log.undo()).rejects.toThrow("cannot");
     expect((await log.list(1))[0].undone).toBe(false);
   });
+
+  it("an undo handler can own a tag pair again (undo of a removal); a failing undo owns nothing", async () => {
+    const pair = { libraryID: L, itemKey: "PAPERAAA", tag: "llm" };
+    const reown = (fail: boolean): UndoHandler => ({
+      kind: fail ? "reown-fails" : "reown",
+      async undo(_change, ctx) {
+        await ctx.ownTag(pair);
+        if (fail) throw new ToolError("cannot");
+        return "Restored";
+      },
+    });
+    log = createChangeLog({ db: sqliteDb(), undoHandlers: [reown(false), reown(true)] });
+    await log.ensureSchema();
+    const failing = await log.recordWrite({ tool: "remove_tags", kind: "reown-fails", args: {} }, async () => {});
+    await expect(log.undo(failing.changeId)).rejects.toThrow("cannot");
+    expect(await log.ownedTags(L, "PAPERAAA")).toEqual(new Set());
+    const { changeId } = await log.recordWrite({ tool: "remove_tags", kind: "reown", args: {} }, async () => {});
+    await log.undo(changeId);
+    expect(await log.ownedTags(L, "PAPERAAA")).toEqual(new Set(["llm"]));
+  });
 });
 
 it("rejects two undo handlers for the same kind", () => {
