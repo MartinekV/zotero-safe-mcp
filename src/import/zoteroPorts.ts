@@ -1,9 +1,9 @@
+// Adapted from llm-for-zotero (AGPL-3.0), src/agent/services/zotero/importCapability.ts@435dd19
+// (lookup with libraryID:false, then ItemSaver.saveItems, then addAvailableFile).
 // The Zotero side of import_paper (orchestration and its reasoning: ./runImport.ts). Metadata comes
 // from Zotero's own identifier translators (Zotero.Translate.Search, as "Add Item by Identifier"),
 // saving goes through Zotero.Translate.ItemSaver, as the translators would, but in two steps so a
 // slow lookup can be abandoned before anything is saved.
-// Adapted from llm-for-zotero (AGPL-3.0), src/agent/services/zotero/importCapability.ts@435dd19
-// (lookup with libraryID:false, then ItemSaver.saveItems, then addAvailableFile).
 import { changeLog } from "../changes";
 import { setDeleted } from "../changes/trash";
 import type { Identifier } from "./identifier";
