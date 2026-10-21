@@ -14,6 +14,8 @@ declare module "vitest" {
   }
 }
 
+export const INTEGRATION_WRITES_PER_MINUTE = 100_000;
+
 const root = join(__dirname, "..", "..");
 const script = join(root, "scripts", "run-zotero-headless.sh");
 
@@ -36,6 +38,9 @@ export default async function setup(project: TestProject) {
     await new Promise((r) => setTimeout(r, 250));
   }
   const token = await zevalAt(port, "return Zotero.Prefs.get('extensions.zotero-safe-mcp.token', true)");
+  // Every itest file shares this instance and the write rate limit's one-minute window: lift the cap so
+  // files don't fail each other. Tests of the limit itself lower it temporarily.
+  await zevalAt(port, `Zotero.Prefs.set("extensions.zotero-safe-mcp.writesPerMinute", ${INTEGRATION_WRITES_PER_MINUTE}, true)`);
   project.provide("zotero", { port, token });
 
   return () => {

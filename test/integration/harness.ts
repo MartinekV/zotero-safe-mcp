@@ -51,3 +51,18 @@ export function callTool(name: string, args: Record<string, unknown> = {}): Prom
 export function zeval(code: string): Promise<any> {
   return zevalAt(zotero().port, code);
 }
+
+/**
+ * Disables or enables the plugin. `addon.enable()` does not wait for the plugin's async startup
+ * (hooks run before endpoints are registered), so this waits until /safe-mcp is registered again.
+ */
+export async function setPluginEnabled(enable: boolean): Promise<void> {
+  await zeval(`
+    const { AddonManager } = ChromeUtils.importESModule("resource://gre/modules/AddonManager.sys.mjs");
+    const addon = await AddonManager.getAddonByID("zotero-safe-mcp@martinekv.github.io");
+    await addon.${enable ? "enable" : "disable"}();
+    if (${enable}) {
+      for (let i = 0; i < 200 && !Zotero.Server.Endpoints["/safe-mcp"]; i++) await Zotero.Promise.delay(25);
+    }
+  `);
+}

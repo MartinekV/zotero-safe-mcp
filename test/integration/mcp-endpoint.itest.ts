@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mcp, mcpRaw, request, zeval } from "./harness";
+import { mcp, mcpRaw, request, setPluginEnabled, zeval } from "./harness";
 
 describe("POST /safe-mcp in a real Zotero", () => {
   it("initializes", async () => {
@@ -45,13 +45,12 @@ describe("POST /safe-mcp in a real Zotero", () => {
   });
 
   it("unregisters its endpoints when disabled and restores them when enabled", async () => {
-    const toggle = (enable: boolean) =>
-      zeval(`
-        const { AddonManager } = ChromeUtils.importESModule("resource://gre/modules/AddonManager.sys.mjs");
-        const addon = await AddonManager.getAddonByID("zotero-safe-mcp@martinekv.github.io");
-        await addon.${enable ? "enable" : "disable"}();
-        return Object.keys(Zotero.Server.Endpoints).filter((p) => p.startsWith("/safe-mcp") && !p.startsWith("/safe-mcp-test"));
-      `);
+    const toggle = async (enable: boolean) => {
+      await setPluginEnabled(enable);
+      return zeval(
+        `return Object.keys(Zotero.Server.Endpoints).filter((p) => p.startsWith("/safe-mcp") && !p.startsWith("/safe-mcp-test"));`,
+      );
+    };
     expect(await toggle(false)).toEqual([]);
     expect((await mcpRaw({ jsonrpc: "2.0", id: 1, method: "ping" })).status).toBe(404);
     expect(await toggle(true)).toContain("/safe-mcp");

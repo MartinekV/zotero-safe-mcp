@@ -1,6 +1,7 @@
 // The tool registry: listing, argument validation, dispatch, and the ONE place where tool
 // failures become MCP `isError` results.
 import type { McpToolCallResult, McpToolDefinition } from "../mcp/protocol";
+import type { RateLimiter } from "../ownership/rateLimit";
 import { validate } from "./schema";
 import { ToolContext, ToolDef, ToolError } from "./types";
 
@@ -12,12 +13,19 @@ export type ToolRegistry = {
   call(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<McpToolCallResult>;
 };
 
-export function createToolRegistry(tools: ToolDef[]): ToolRegistry {
+export type ToolRegistryOptions = {
+  /** Caps write tools (SPEC: Rate limit). Checked after argument validation, before the handler. */
+  writeLimiter?: RateLimiter;
+};
+
+export function createToolRegistry(tools: ToolDef[], opts: ToolRegistryOptions = {}): ToolRegistry {
   const byName = new Map<string, ToolDef>();
   for (const tool of tools) {
     if (byName.has(tool.name)) throw new Error(`Duplicate tool name: ${tool.name}`);
     byName.set(tool.name, tool);
   }
+  // Write tools run one at a time, so two calls can't interleave their read-check-write steps.
+  let writeQueue: Promise<unknown> = Promise.resolve();
 
   return {
     list: () =>
@@ -33,15 +41,25 @@ export function createToolRegistry(tools: ToolDef[]): ToolRegistry {
       if (!tool) throw new UnknownToolError(`Unknown tool: ${name}`);
       const problems = validate(tool.inputSchema, args);
       if (problems.length) return errorResult(`Invalid arguments: ${problems.join("; ")}`);
-      try {
-        return toResult(await tool.handler(args, ctx));
-      } catch (e) {
-        if (e instanceof ToolError) return errorResult(e.message);
-        ctx.log(`tool ${name} failed: ${describe(e)}${e instanceof Error && e.stack ? `\n${e.stack}` : ""}`);
-        return errorResult(`Internal error in ${name}: ${describe(e)}`);
-      }
+      if (!tool.write) return run(tool, args, ctx);
+      const refused = opts.writeLimiter?.tryAcquire();
+      if (refused) return errorResult(refused);
+      const result = writeQueue.then(() => run(tool, args, ctx));
+      writeQueue = result.catch(() => {});
+      return result;
     },
   };
+}
+
+/** Runs a handler; every failure becomes an `isError` result (the ONE place this happens). */
+async function run(tool: ToolDef, args: Record<string, unknown>, ctx: ToolContext): Promise<McpToolCallResult> {
+  try {
+    return toResult(await tool.handler(args, ctx));
+  } catch (e) {
+    if (e instanceof ToolError) return errorResult(e.message);
+    ctx.log(`tool ${tool.name} failed: ${describe(e)}${e instanceof Error && e.stack ? `\n${e.stack}` : ""}`);
+    return errorResult(`Internal error in ${tool.name}: ${describe(e)}`);
+  }
 }
 
 function describe(e: unknown): string {

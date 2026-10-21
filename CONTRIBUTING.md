@@ -21,7 +21,11 @@ src/
   mcp/                    JSON-RPC / MCP handling for POST /safe-mcp
   tools/*.ts              one file per MCP tool            ┐ auto-registered: scripts/gen-index.mjs
   endpoints/*.ts          one file per HTTP endpoint       │ writes <dir>/index.generated.ts
-  hooks/*.ts              startup/shutdown hooks           ┘ (gitignored; files named _* are skipped)
+  hooks/*.ts              startup/shutdown hooks           │ (gitignored; files named _* are skipped)
+  undo/*.ts               one undo handler per change kind ┘
+  changes/                change log + ownership registry (safe-mcp.sqlite attached to Zotero.DB), trash helpers
+  ownership/              pure ownership checks, write rate limiter
+  notes/                  Markdown ↔ note HTML; zoteroLookups.ts = citation/image lookups for create/edit_note
 test/unit/*.test.ts       vitest, plain Node, fake Zotero objects where needed
 test/integration/         *.itest.ts against a real headless Zotero
 scripts/                  build.mjs, gen-index.mjs, run-zotero-headless.sh
@@ -64,10 +68,71 @@ export default defineTool<{ itemKey: string }>({
   strings are sent as-is.
 - Throw `ToolError("message for the agent")` for expected failures. Anything else thrown (including
   Zotero's bare-string rejections) also becomes an `isError` result and is logged to Zotero's debug output.
-- `write: true` marks tools that change the library (read-only hint off; the rate limit and
-  ownership checks hook in at `registry/tools.ts` `call`).
+- `write: true` marks tools that change the library: read-only hint off, and `registry/tools.ts` `call`
+  applies the write rate limit (pref `writesPerMinute`, default 30, checked before the handler so a
+  refused call has no side effects) and runs write tools one at a time. See "Adding a write tool".
 - Unit-test pure logic in `test/unit/<tool_name>.test.ts`; test the tool end to end in
   `test/integration/<tool_name>.itest.ts`.
+
+## Adding a write tool
+
+Every change to the library goes through `changeLog().recordWrite` (`src/changes/index.ts`), which runs
+your body and records the change in ONE DB transaction with the Zotero saves: a throw anywhere rolls back
+both, so a failed call leaves neither items nor registry rows behind.
+
+```ts
+import { changeLog } from "../changes";
+import { requireOwned } from "../ownership/checks";
+
+async handler(args) {
+  const L = libraryID();
+  // 1. Check everything first (ownership, existence) and throw ToolError: nothing written yet.
+  requireOwned([args.noteKey], await changeLog().ownedKeys(L, [args.noteKey]), "edit");
+  // 2. Write inside recordWrite. Use item.save(), NEVER saveTx()/eraseTx()/Zotero.Items.trashTx()
+  //    (nested transactions deadlock for 30 s) — and no other executeTransaction inside.
+  const { changeId, result } = await changeLog().recordWrite({ tool: "edit_note", args }, async (w) => {
+    w.saveNoteVersion({ libraryID: L, noteKey: note.key, html: note.getNote() }); // previous version
+    note.setNote(html);
+    await note.save();
+    w.summary = `Edited note ${note.key}`;   // shown by list_changes
+    return { noteKey: note.key };
+  });
+  return { changeId, ...result };            // every write returns its changeId
+}
+```
+
+The `ChangeWriter` `w` (`src/changes/types.ts`) records, all with the change's `changeId`:
+`ownObject({ libraryID, itemKey, kind })` for every object created (notes, highlights, papers, their
+attachments), `ownTag` for each (item, tag) pair newly added (use `splitNewTags` from
+`ownership/checks.ts`: pairs that already existed are never recorded), `disownTag` when a pair is removed
+again, `saveNoteVersion` for the HTML before an edit, `data` for any other JSON the undo needs, and
+`summary`. Ownership queries: `changeLog().isOwned`, `ownedKeys`, `ownedTags`; checks that throw a clear
+`ToolError`: `requireOwned`, `requireOwnedTagPairs` (`src/ownership/checks.ts`). `byLLM` in read results
+always comes from the registry, never from the `[LLM]` tag. Trash, never erase: `setDeleted` in
+`src/changes/trash.ts`.
+
+### Undo handlers
+
+`undo` dispatches on the change's `kind` (defaults to the tool name; pass `kind` to `recordWrite` to
+reuse another kind's handler) to the handler in `src/undo/<kind>.ts`, auto-registered like tools:
+
+```ts
+import type { UndoHandler } from "../changes/types";
+const handler: UndoHandler = {
+  kind: "edit_note",
+  async undo(change, ctx) {   // change: args, data, objects, tags, noteVersions recorded with it
+    ...                       // inside the undo transaction: item.save() only; throw ToolError to refuse
+    return "Restored note ABCD1234 to its previous version";
+  },
+};
+export default handler;
+```
+
+The change log marks the change undone in the same transaction; a change is undone at most once, and
+undo itself is not recorded as a change. `ctx.disownTag` forgets a pair (do this when undo removes a
+tag, so a user adding it again later owns it). For changes that only created objects,
+`trashCreatedObjects` (`src/undo/create_note.ts`) trashes everything in `change.objects`.
+Unit-test changes against a real SQLite with `test/unit/sqliteDb.ts` (see `change-log.test.ts`).
 
 ## Adding an HTTP endpoint
 
@@ -119,6 +184,9 @@ const { key } = await zeval(`const i = new Zotero.Item("book"); i.setField("titl
 const result = await callTool("get_item", { itemKey: key });
 ```
 
-Everything goes to `127.0.0.1:$ZPORT` through `node:http` (no proxy). Never point tests at
+Global setup raises the write rate limit pref (`INTEGRATION_WRITES_PER_MINUTE`) because all files share
+one instance and one rate-limit window; a test that lowers it must restore it. To disable/re-enable the
+plugin use `setPluginEnabled` (it waits for the async startup). Everything goes to `127.0.0.1:$ZPORT`
+through `node:http` (no proxy). Never point tests at
 `host.docker.internal:23119`: that is the user's real library. Files share one library, so create the
 data each test needs instead of relying on another file's leftovers.

@@ -13,8 +13,36 @@ Ownership checks live in one pure module (unit-tested) that every later write ti
 
 **Blocked by:** 01, 03
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Unit tests: ownership checks (owned vs foreign item, owned vs pre-existing tag pair), change log / undo ordering, undo of an already-undone change refused
-- [ ] Unit tests: rate limiter (window, cap, reads unaffected)
-- [ ] Trying to trash a user's item fails with a clear error and changes nothing
+- [x] Unit tests: ownership checks (owned vs foreign item, owned vs pre-existing tag pair), change log / undo ordering, undo of an already-undone change refused
+- [x] Unit tests: rate limiter (window, cap, reads unaffected)
+- [x] Trying to trash a user's item fails with a clear error and changes nothing
+
+## Comments
+
+- **Storage:** `<Zotero data dir>/safe-mcp.sqlite`, ATTACHed to `Zotero.DB` as `safemcp`
+  (`src/hooks/change-log-db.ts`; re-attached via `Zotero.DB.onConnect`, detached on shutdown). Tables as in
+  SPEC: Storage, plus: `changes` has `seq` (ordering), `kind` (selects the undo handler), `data` (JSON for
+  the undo handler), `summary`, `undoneAt`; every table carries `libraryID`. Schema version in
+  `PRAGMA safemcp.user_version` (1).
+- **API for tickets 05/06/08/09/10** (documented in CONTRIBUTING.md "Adding a write tool"):
+  `changeLog().recordWrite({ tool, args, kind? }, async (w) => …)` runs the Zotero saves and the
+  change/ownership/version rows in one transaction; undo handlers are files in `src/undo/<kind>.ts`
+  (auto-registered by `gen-index.mjs`). Pure checks in `src/ownership/checks.ts` (`requireOwned`,
+  `splitNewTags`, `requireOwnedTagPairs`). Rate limit + write serialisation live in `registry/tools.ts`,
+  so no write tool can skip them.
+- **Citations wired** (`src/notes/zoteroLookups.ts`, per ticket 03's comments): regular, non-trashed items
+  only. `resolveImage` currently refuses every `image:` reference; ticket 10 replaces it there.
+- **`list_annotations` byLLM wired** to the registry (ticket 07's comment).
+- Conservative choices: `undo` is not itself a change (can't be undone; returns `undoneChangeId`); undo of a
+  creation moves the objects to the trash and keeps them owned (so `undo` of a `trash` or a user's restore
+  keeps them editable); undo of `trash` restores only items that call trashed. `trash` fails as a whole
+  if any key is unknown or not owned. Rate-limit slots are taken after argument validation, so a call
+  refused for invalid arguments doesn't count; every other write call does, even one that then fails.
+  Pref `extensions.zotero-safe-mcp.writesPerMinute` (default 30; a non-positive/non-integer value falls
+  back to 30, never to "unlimited"). Default `list_changes` limit 20 (max 200).
+- `addon.enable()` does not await the plugin's async startup, and startup now does DB work before
+  endpoints are registered: integration tests that toggle the plugin use `setPluginEnabled` (harness),
+  which waits for `/safe-mcp`. `get_reader_state.itest.ts`'s selection test is flaky (failed 1 of 3
+  runs, also in isolation; unrelated to this ticket).
