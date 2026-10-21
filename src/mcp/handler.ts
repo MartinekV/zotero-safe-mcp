@@ -1,6 +1,7 @@
 // POST /safe-mcp: MCP over Streamable HTTP, JSON responses only, stateless.
 // Batches are rejected (removed from MCP in 2025-06-18). Tool failures are results with
 // isError (see registry/tools.ts); only malformed calls get JSON-RPC errors.
+import type { RateLimiter } from "../ownership/rateLimit";
 import { createToolRegistry, UnknownToolError } from "../registry/tools";
 import { HttpHandler, HttpResponse, ToolDef } from "../registry/types";
 import { JsonRpcId, JsonRpcResponse, makeError, makeResult, RPC_ERRORS, SUPPORTED_PROTOCOL_VERSIONS } from "./protocol";
@@ -9,6 +10,8 @@ export type McpHandlerOptions = {
   tools: ToolDef[];
   version: string;
   log(message: string): void;
+  /** Caps write tool calls (SPEC: Rate limit). */
+  writeLimiter?: RateLimiter;
 };
 
 class InvalidParams extends Error {}
@@ -30,7 +33,7 @@ function isValidId(v: unknown): boolean {
 }
 
 export function createMcpHandler(opts: McpHandlerOptions): HttpHandler {
-  const registry = createToolRegistry(opts.tools);
+  const registry = createToolRegistry(opts.tools, { writeLimiter: opts.writeLimiter });
   const ctx = { log: opts.log };
 
   const methods: Record<string, (params: unknown) => unknown> = {

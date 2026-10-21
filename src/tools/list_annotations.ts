@@ -1,3 +1,4 @@
+import { changeLog } from "../changes";
 import { ITEM_KEY_PATTERN } from "../pdf/attachmentKey";
 import { getFileAttachment } from "../pdf/attachment";
 import { defineTool, ToolDef } from "../registry/types";
@@ -8,8 +9,8 @@ export type IsOwned = (libraryID: number, key: string) => boolean | Promise<bool
 export type ListAnnotationsDeps = {
   getAttachment(key: string): Promise<Zotero.Item>;
   /**
-   * Ownership registry lookup for `byLLM`. Defaults to "nothing is owned" until the registry
-   * (ticket 04) is wired in at the default export below. Never derived from an `[LLM]` comment.
+   * Ownership registry lookup for `byLLM` (defaults to "nothing is owned"). Never derived from an
+   * `[LLM]` comment.
    */
   isOwned?: IsOwned;
   /** Zotero.Annotations.COLORS: [l10nKey like "general-yellow", hex]. */
@@ -70,4 +71,7 @@ export function createListAnnotationsTool(deps: ListAnnotationsDeps): ToolDef<{ 
   });
 }
 
-export default createListAnnotationsTool({ getAttachment: getFileAttachment, isOwned: notOwned });
+export default createListAnnotationsTool({
+  getAttachment: getFileAttachment,
+  isOwned: (libraryID, key) => changeLog().isOwned(libraryID, key),
+});

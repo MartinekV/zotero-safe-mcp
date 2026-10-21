@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { callTool, request, zeval, zotero } from "./harness";
+import { callTool, request, setPluginEnabled, zeval, zotero } from "./harness";
 
 const PDF = join(__dirname, "fixtures", "wonderland_short.pdf");
 const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
@@ -71,12 +71,7 @@ describe("GET /safe-mcp/pdf/<key>", () => {
 
     const isPatched = `return !Zotero.Server.RequestHandler.prototype._requestFinished.toString().includes("intlStream");`;
     expect(await zeval(isPatched)).toBe(true);
-    const toggle = (enable: boolean) =>
-      zeval(`
-        const { AddonManager } = ChromeUtils.importESModule("resource://gre/modules/AddonManager.sys.mjs");
-        const addon = await AddonManager.getAddonByID("zotero-safe-mcp@martinekv.github.io");
-        await addon.${enable ? "enable" : "disable"}();
-      `);
+    const toggle = setPluginEnabled;
     await toggle(false);
     expect(await zeval(isPatched)).toBe(false);
     await toggle(true);

@@ -30,7 +30,7 @@ export type ToolDef<Args = any> = {
   description: string;
   /** JSON Schema for the arguments; must be `type: "object"`. Arguments are validated before `handler` runs. */
   inputSchema: JsonSchema & { type: "object" };
-  /** true for tools that change the library (rate-limited, ownership-checked). */
+  /** true for tools that change the library: rate-limited and run one at a time by the registry; must record via changeLog().recordWrite. */
   write: boolean;
   /**
    * Returns any JSON-serialisable value (sent as text + structuredContent when it is an object).
