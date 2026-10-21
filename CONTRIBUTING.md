@@ -26,6 +26,7 @@ src/
   changes/                change log + ownership registry (safe-mcp.sqlite attached to Zotero.DB), trash helpers
   ownership/              pure ownership checks, write rate limiter
   notes/                  Markdown ↔ note HTML; zoteroLookups.ts = citation/image lookups for create/edit_note
+  highlight/              add_highlight: color rule, quote → glyph rects (locate.ts, pure), pdf.js loader, annotation save/copy
 test/unit/*.test.ts       vitest, plain Node, fake Zotero objects where needed
 test/integration/         *.itest.ts against a real headless Zotero
 scripts/                  build.mjs, gen-index.mjs, run-zotero-headless.sh

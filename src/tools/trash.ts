@@ -1,4 +1,5 @@
 import { changeLog } from "../changes";
+import { annotationSnapshot } from "../highlight/annotationItem";
 import { describeOutcome, setDeleted } from "../changes/trash";
 import { requireOwned } from "../ownership/checks";
 import { defineTool, ToolError } from "../registry/types";
@@ -29,8 +30,13 @@ export default defineTool<{ itemKeys: string[] }>({
     if (already.length === keys.length) throw new ToolError(`Already in the trash: ${already.join(", ")}.`);
 
     const { changeId, result } = await changeLog().recordWrite({ tool: "trash", args }, async (w) => {
+      // Copies of highlights, so undo can recreate them if the user empties the trash in between.
+      const annotations = keys
+        .map((k) => Zotero.Items.getByLibraryAndKey(L, k) as Zotero.Item)
+        .filter((i) => i.isAnnotation() && !i.deleted)
+        .map(annotationSnapshot);
       const outcome = await setDeleted(L, keys, true);
-      const data: TrashData = { libraryID: L, trashed: outcome.changed };
+      const data: TrashData = { libraryID: L, trashed: outcome.changed, ...(annotations.length ? { annotations } : {}) };
       w.data = data;
       w.summary = describeOutcome("Trashed", outcome, "already in the trash");
       return { trashed: outcome.changed, alreadyInTrash: outcome.unchanged };
