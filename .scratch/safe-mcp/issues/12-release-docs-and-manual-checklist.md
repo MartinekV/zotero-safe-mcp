@@ -12,3 +12,4 @@
 ## Comments
 
 - From ticket 04: the selection case in `test/integration/get_reader_state.itest.ts` (ticket 11) is flaky (~1 in 3 fails). Make it deterministic.
+- A unit test in `test/unit/import-run.test.ts` (ticket 09) failed once in 5 full `npm test` runs (likely timing-dependent); make it deterministic (fake timers).
