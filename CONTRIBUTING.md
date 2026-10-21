@@ -29,6 +29,7 @@ src/
   notes/                  Markdown ↔ note HTML; zoteroLookups.ts = citation/image lookups for create/edit_note
                           noteVersions.ts = edit_note's version save/restore; zoteroNotes.ts = embedded images
                           (importEmbeddedImage without its own transaction, for use inside recordWrite)
+  highlight/              add_highlight: color rule, quote → glyph rects (locate.ts, pure), pdf.js loader, annotation save/copy
 test/unit/*.test.ts       vitest, plain Node, fake Zotero objects where needed
 test/integration/         *.itest.ts against a real headless Zotero
 scripts/                  build.mjs, gen-index.mjs, run-zotero-headless.sh
