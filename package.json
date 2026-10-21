@@ -1,0 +1,24 @@
+{
+  "name": "zotero-safe-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Zotero plugin exposing a small, safe MCP server for LLM agents",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "gen": "node scripts/gen-index.mjs",
+    "build": "node scripts/gen-index.mjs && tsc --noEmit && node scripts/build.mjs",
+    "test": "node scripts/gen-index.mjs && vitest run",
+    "test:watch": "node scripts/gen-index.mjs && vitest",
+    "test:integration": "node scripts/gen-index.mjs && node scripts/build.mjs && vitest run --config vitest.integration.config.ts",
+    "typecheck": "node scripts/gen-index.mjs && tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.25.12",
+    "fflate": "^0.8.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7",
+    "zotero-types": "^4.1.0-beta.4"
+  }
+}

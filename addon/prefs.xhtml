@@ -1,0 +1,20 @@
+<vbox id="safe-mcp-pane" onload="SafeMcpPane.init()">
+  <groupbox>
+    <label><html:h2>Safe MCP</html:h2></label>
+    <html:p>Agents connect to <html:code id="safe-mcp-url"></html:code> with this bearer token. Anyone with the token can use this plugin's tools (and nothing else).</html:p>
+    <html:label for="safe-mcp-token">Access token</html:label>
+    <hbox align="center">
+      <html:input id="safe-mcp-token" type="text" readonly="true" size="70" preference="extensions.zotero-safe-mcp.token"/>
+      <button id="safe-mcp-copy-token" label="Copy token" oncommand="SafeMcpPane.copyToken()"/>
+    </hbox>
+    <html:label for="safe-mcp-command">Claude Code setup command (run in the sandbox)</html:label>
+    <hbox align="center">
+      <html:input id="safe-mcp-command" type="text" readonly="true" size="70"/>
+      <button id="safe-mcp-copy-command" label="Copy command" oncommand="SafeMcpPane.copyCommand()"/>
+    </hbox>
+    <hbox>
+      <button id="safe-mcp-regen" label="Regenerate token" oncommand="SafeMcpPane.regenerate()"/>
+    </hbox>
+    <html:p id="safe-mcp-status"></html:p>
+  </groupbox>
+</vbox>

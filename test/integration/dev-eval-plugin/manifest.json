@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "Safe MCP test eval (DEV ONLY)",
+  "version": "0.0.1",
+  "description": "Integration-test helper: runs JS posted to /safe-mcp-test/eval. Never install in a real Zotero.",
+  "applications": {
+    "zotero": {
+      "id": "safe-mcp-test-eval@example.org",
+      "update_url": "https://example.org/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "10.*"
+    }
+  }
+}

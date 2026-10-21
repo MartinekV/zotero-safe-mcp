@@ -1,0 +1,6 @@
+node_modules/
+build/
+*.xpi
+src/**/index.generated.ts
+.zotero-headless/
+*.tsbuildinfo
