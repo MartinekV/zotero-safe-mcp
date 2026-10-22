@@ -96,3 +96,59 @@ describe("import_paper over the network", () => {
     for (const key of [out.itemKey, ...children]) expect((await item(key)).deleted, key).toBe(true);
   });
 });
+
+describe("import_paper duplicate check", () => {
+  // A paper the user added by hand; `fields` are set with setField.
+  const userPaper = (itemType: string, fields: Record<string, string>, trashed = false) => zeval(`
+    const i = new Zotero.Item(${JSON.stringify(itemType)});
+    for (const [k, v] of Object.entries(${JSON.stringify(fields)})) i.setField(k, v);
+    if (${trashed}) i.deleted = true;
+    await i.saveTx();
+    return i.key;
+  `);
+
+  it("returns the user's existing item (DOI in Extra, arXiv in URL, PMID in Extra) without importing, recording or filing", async () => {
+    const tag = Date.now();
+    const doiKey = await userPaper("report", { title: "Report", extra: `DOI: 10.5555/DUP-${tag}` });
+    const arxivKey = await userPaper("preprint", { title: "Preprint", url: "https://arxiv.org/abs/2101.00001v3" });
+    const pmidKey = await userPaper("journalArticle", { title: "Article", extra: "PMID: 987654321" });
+    const [items, changes] = [await itemCount(), await changeCount()];
+
+    for (const [identifier, key] of [[`10.5555/dup-${tag}`, doiKey], ["arXiv:2101.00001v1", arxivKey], ["PMID: 987654321", pmidKey]]) {
+      const t0 = Date.now();
+      const r = await callTool("import_paper", { identifier, collectionKey });
+      expect(r.isError, text(r)).toBeFalsy();
+      expect(r.structuredContent).toMatchObject({ duplicate: true, itemKey: key });
+      expect(r.structuredContent.changeId).toBeUndefined();
+      expect(r.structuredContent.message).toMatch(/not added to the collection/i);
+      expect(Date.now() - t0).toBeLessThan(2000); // no translator lookup
+      expect(await item(key)).toMatchObject({ deleted: false, collections: [] });
+    }
+    expect([await itemCount(), await changeCount()]).toEqual([items, changes]);
+    // Still the user's: the agent cannot trash it.
+    expect((await callTool("trash", { itemKeys: [doiKey] })).isError).toBe(true);
+  });
+
+  it("importing the same DOI twice yields one item; a trashed copy does not count", { timeout: 3 * NET }, async () => {
+    const doi = "10.1093/nar/gks1195";
+    await userPaper("journalArticle", { title: "Trashed copy", DOI: doi }, true);
+    // The lookup sometimes fails transiently in the sandbox (no items returned, or no answer in 30 s);
+    // a failed lookup imports nothing, so retrying is safe.
+    let first = await callTool("import_paper", { identifier: doi });
+    for (let i = 0; i < 2 && first.isError && /No items returned|did not answer/.test(text(first)); i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      first = await callTool("import_paper", { identifier: doi });
+    }
+    expect(first.isError, text(first)).toBeFalsy();
+    expect(first.structuredContent.duplicate).toBeUndefined();
+    const changes = await changeCount();
+    const items = await itemCount();
+
+    const second = await callTool("import_paper", { identifier: `doi:${doi.toUpperCase()}` });
+    expect(second.isError, text(second)).toBeFalsy();
+    expect(second.structuredContent).toMatchObject({ duplicate: true, itemKey: first.structuredContent.itemKey });
+    expect([await itemCount(), await changeCount()]).toEqual([items, changes]);
+
+    await callTool("undo", { changeId: first.structuredContent.changeId });
+  });
+});

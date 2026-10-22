@@ -44,7 +44,9 @@ export function rawRequest(
         resolve({ answered: false, status: 0, statusText: "", headers: {}, body: "", bytes: Buffer.alloc(0) });
       } else reject(e);
     });
-    req.setTimeout(30_000, () => req.destroy(new Error(`timeout: ${path}`)));
+    // Idle timeout: Zotero sends nothing until the handler is done, and import_paper may take up to its
+    // lookup + attachment budgets (~60 s) when publishers are slow.
+    req.setTimeout(90_000, () => req.destroy(new Error(`timeout: ${path}`)));
     req.end(body);
   });
 }

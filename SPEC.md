@@ -116,7 +116,7 @@ MCP client ──HTTP──► host.docker.internal:23119 ──► Zotero built
 | `edit_note` | `noteKey`, `markdown` | owned, non-trashed notes only; previous version saved for undo; `[LLM]` tag kept |
 | `add_tags` | `itemKey`, `tags[]` | any non-trashed item; `[LLM]` refused; each newly added pair recorded as owned (pairs that already existed are not); refused if every tag is already there |
 | `remove_tags` | `itemKey`, `tags[]` | owned pairs only; all or nothing, the error lists the refused tags |
-| `import_paper` | `identifier`, optional `collectionKey` | DOI / arXiv / PMID via Zotero's own translators; fetches PDF when Zotero can; new item + attachments recorded as owned; if an item with the same DOI / arXiv ID / PMID is already in the personal library (not in the trash), returns its key and imports nothing |
+| `import_paper` | `identifier`, optional `collectionKey` | DOI / arXiv / PMID via Zotero's own translators; fetches PDF when Zotero can; new item + attachments recorded as owned; if an item with the same DOI / arXiv ID / PMID is already in the personal library (not in the trash), returns `{ duplicate: true, itemKey }` and imports, records and files nothing (the existing item is not added to `collectionKey`) |
 | `trash` | `itemKeys[]` | owned items only (notes, highlights, imported papers) → Zotero trash; all or nothing |
 | `undo` | optional `changeId` (default: the agent's last change not yet undone) | reverses one owned change: trashes what was created, restores what was trashed, restores the previous note version, removes added tags, re-adds removed tags |
 
