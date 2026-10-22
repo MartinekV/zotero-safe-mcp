@@ -1,7 +1,7 @@
 import { changeLog } from "../changes";
 import { annotationSnapshot } from "../highlight/annotationItem";
 import { describeOutcome, setDeleted } from "../changes/trash";
-import { requireAgentOwned } from "../ownership/agentOwned";
+import { requireAgentOwned, requireNoUserChildren } from "../ownership/agentOwned";
 import { defineTool, ToolError } from "../registry/types";
 import type { TrashData } from "../undo/trash";
 import { KEY_PATTERN, libraryID } from "../zotero/library";
@@ -10,7 +10,7 @@ export default defineTool<{ itemKeys: string[] }>({
   name: "trash",
   description:
     "Move notes, highlights and imported papers this plugin created to Zotero's trash (never deleted permanently; " +
-    "undo restores them). The user's own items, and notes the user has edited in Zotero, are refused, and then nothing is trashed. Returns a changeId.",
+    "undo restores them). The user's own items, notes the user has edited in Zotero, and items the user added notes, files or highlights to are refused, and then nothing is trashed. Returns a changeId.",
   write: true,
   inputSchema: {
     type: "object",
@@ -26,6 +26,7 @@ export default defineTool<{ itemKeys: string[] }>({
     const missing = keys.filter((k) => !Zotero.Items.getByLibraryAndKey(L, k));
     if (missing.length) throw new ToolError(`No item with key ${missing.join(", ")} in the library; nothing was trashed.`);
     await requireAgentOwned(L, keys, "trash");
+    await requireNoUserChildren(L, keys, "trash");
     const already = keys.filter((k) => (Zotero.Items.getByLibraryAndKey(L, k) as Zotero.Item).deleted);
     if (already.length === keys.length) throw new ToolError(`Already in the trash: ${already.join(", ")}.`);
 

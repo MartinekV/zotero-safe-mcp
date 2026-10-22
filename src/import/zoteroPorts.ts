@@ -12,9 +12,10 @@ import type { ImportPorts, SavedObject } from "./runImport";
 const Z = () => Zotero as any;
 
 function toSaved(item: Zotero.Item): SavedObject {
-  if (item.isNote()) return { key: item.key, kind: "note" };
+  const parent = item.parentKey ? { parentKey: item.parentKey } : {};
+  if (item.isNote()) return { key: item.key, kind: "note", ...parent };
   if (item.isAttachment()) {
-    return { key: item.key, kind: "attachment", title: item.getField("title") as string, contentType: item.attachmentContentType || undefined };
+    return { key: item.key, kind: "attachment", title: item.getField("title") as string, contentType: item.attachmentContentType || undefined, ...parent };
   }
   return { key: item.key, kind: "paper", title: item.getField("title") as string };
 }
@@ -39,7 +40,7 @@ export function zoteroImportPorts(opts: {
       return await translate.translate({ libraryID: false });
     },
 
-    async save(items, onSaved) {
+    async save(items, onSaved, onAttachment) {
       const ItemSaver = Z().Translate.ItemSaver;
       const saver = new ItemSaver({
         libraryID: L,
@@ -48,16 +49,29 @@ export function zoteroImportPorts(opts: {
         forceTagType: 1,
         saveOptions: { skipSelect: true }, // don't change the user's selection
       });
-      return saver.saveItems(items, () => {}, (_json: unknown, saved: Zotero.Item[]) => onSaved(saved.map(toSaved)));
-    },
-
-    children(key) {
-      const item = Zotero.Items.getByLibraryAndKey(L, key);
-      if (!item || !item.isRegularItem()) return [];
-      return [...item.getAttachments(), ...item.getNotes()]
-        .map((id) => Zotero.Items.get(id))
-        .filter(Boolean)
-        .map(toSaved);
+      // Ownership comes only from what this saver creates (never from the item's children, which may
+      // include the user's): capture the notes and attachments its own save methods return.
+      const notes: Zotero.Item[] = [];
+      const saveNote = saver._saveNote;
+      saver._saveNote = async function (...a: unknown[]) {
+        const note = await saveNote.apply(this, a);
+        if (note) notes.push(note);
+        return note;
+      };
+      const saveAttachment = saver._saveAttachment;
+      saver._saveAttachment = async function (...a: unknown[]) {
+        const att = await saveAttachment.apply(this, a);
+        if (att) onAttachment(toSaved(att));
+        return att;
+      };
+      // The saver's own open-access download doesn't return its attachment; runImport's Find
+      // Available PDF step (findPdf below, open-access sources included) does that instead.
+      saver._getOpenAccessPDFURLs = async () => null;
+      saver.saveOpenAccessAttachment = async () => {};
+      return saver.saveItems(items, () => {}, (_json: unknown, saved: Zotero.Item[]) => {
+        const all = new Map([...saved, ...notes].map((i) => [i.key, toSaved(i)]));
+        onSaved([...all.values()]);
+      });
     },
 
     async findPdf(key) {
@@ -82,7 +96,14 @@ export function zoteroImportPorts(opts: {
     },
 
     async addLate(changeId, objects) {
-      const { undone } = await changeLog().addObjects(changeId, objects.map((o) => ({ libraryID: L, itemKey: o.key, kind: o.kind })));
+      const { undone } = await changeLog().addObjects(
+        changeId,
+        objects.map((o) => ({ libraryID: L, itemKey: o.key, kind: o.kind })),
+        objects.flatMap((o) => {
+          const note = o.kind === "note" ? Zotero.Items.getByLibraryAndKey(L, o.key) : null;
+          return note && note.isNote() ? [{ libraryID: L, noteKey: o.key, html: note.getNote() }] : [];
+        }),
+      );
       if (undone) await trash(objects.map((o) => o.key));
     },
 

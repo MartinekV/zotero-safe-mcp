@@ -4,12 +4,14 @@
 //    lookup that doesn't answer within `lookupTimeoutMs` fails the call; a late answer is dropped.
 // 2. save: the items (and translator notes) are saved, then `onSaved` fires and the change is
 //    recorded at once, so the new item is owned before any attachment download starts to matter.
+//    Only objects the save step itself reports (onSaved, onAttachment) and the PDF search returns
+//    are recorded: children the user adds to the new item meanwhile are never swept in.
 //    Zotero's ItemSaver opens its own transactions and does network I/O, so this can't run inside
 //    recordWrite's single transaction; the window between its commit and our record is tiny, and
 //    if recording fails the saved items go to the trash.
-// 3. attachments download (translator PDFs, snapshots, open-access PDFs), then, if no PDF/EPUB
-//    came with the item, Zotero's "Find Available PDF" runs. Everything created is added to the
-//    same change (changeLog().addObjects).
+// 3. attachments download (translator PDFs, snapshots), then, if no PDF/EPUB came with the item,
+//    Zotero's "Find Available PDF" (which includes open-access sources) runs. Everything created
+//    is added to the same change (changeLog().addObjects).
 //
 // Steps 2-3 get `attachmentTimeoutMs` in total. When that runs out the call returns anyway
 // (complete: false) and step 3 keeps going in the background, still recording what it creates,
@@ -23,18 +25,19 @@ export type SavedObject = {
   kind: "paper" | "attachment" | "note";
   title?: string;
   contentType?: string;
+  /** For notes and attachments: the item they belong to. */
+  parentKey?: string;
 };
 
 export type ImportPorts = {
   /** Metadata for the identifier from Zotero's translators; saves nothing. */
   lookup(id: Identifier): Promise<unknown[]>;
   /**
-   * Saves the looked-up items. Calls `onSaved` with the top-level items as soon as they and their
-   * notes are committed, then downloads attachments; resolves when every download has finished.
+   * Saves the looked-up items. Calls `onSaved` with the top-level items and the notes saved with
+   * them as soon as they are committed, then downloads attachments, calling `onAttachment` with each
+   * one it creates; resolves when every download has finished.
    */
-  save(items: unknown[], onSaved: (topLevel: SavedObject[]) => void): Promise<unknown>;
-  /** The item's attachments and notes as they are now. */
-  children(key: string): SavedObject[];
+  save(items: unknown[], onSaved: (saved: SavedObject[]) => void, onAttachment: (attachment: SavedObject) => void): Promise<unknown>;
   /** Zotero's "Find Available PDF" for the item: the new attachment, or null if none was found. */
   findPdf(key: string): Promise<SavedObject | null>;
   /** Records a new change owning `objects`; returns its changeId. */
@@ -91,15 +94,16 @@ export async function runImport(id: Identifier, ports: ImportPorts, opts: Import
 
   // 2. Save, recording the change as soon as the top-level items exist.
   const deadline = Date.now() + opts.attachmentTimeoutMs;
-  const recorded = new Set<string>();
+  const recorded = new Map<string, SavedObject>();
+  const arrived: SavedObject[] = []; // attachments reported by the save step, not yet recorded
   let top: SavedObject[] = [];
   let changeId!: Promise<string>;
   let downloads!: Promise<unknown>;
   const saved = new Promise<void>((resolveSaved, rejectSaved) => {
-    const done = ports.save(found as unknown[], (items) => {
-      top = items;
-      const objects = [...items, ...items.flatMap((i) => ports.children(i.key))];
-      for (const o of objects) recorded.add(o.key);
+    const onSaved = (objects: SavedObject[]) => {
+      top = objects.filter((o) => o.parentKey === undefined);
+      for (const o of objects) recorded.set(o.key, o);
+      const items = top;
       const first = items[0];
       const summary =
         `Imported ${first ? `${first.key} "${first.title ?? ""}"` : "nothing"}` +
@@ -110,7 +114,8 @@ export async function runImport(id: Identifier, ports: ImportPorts, opts: Import
         throw e;
       });
       resolveSaved();
-    });
+    };
+    const done = ports.save(found as unknown[], onSaved, (a) => void arrived.push(a));
     done.then(
       () => resolveSaved(), // no-op once onSaved ran
       (e) => rejectSaved(e),
@@ -126,10 +131,11 @@ export async function runImport(id: Identifier, ports: ImportPorts, opts: Import
   const cid = await changeId;
 
   // 3. Attachments, then Find Available PDF; recorded as they appear.
+  const childrenOf = (key: string) => [...recorded.values()].filter((o) => o.parentKey === key);
   const recordNew = async (extra: SavedObject[] = []) => {
     const fresh: SavedObject[] = [];
-    for (const o of [...top.flatMap((i) => ports.children(i.key)), ...extra]) {
-      if (!recorded.has(o.key)) recorded.add(o.key), fresh.push(o);
+    for (const o of [...arrived.splice(0), ...extra]) {
+      if (!recorded.has(o.key)) recorded.set(o.key, o), fresh.push(o);
     }
     if (!fresh.length) return;
     await ports.addLate(cid, fresh);
@@ -139,7 +145,7 @@ export async function runImport(id: Identifier, ports: ImportPorts, opts: Import
     await recordNew();
     if (!opts.findPdf) return;
     for (const item of top) {
-      if (item.kind !== "paper" || hasPrimary(ports.children(item.key))) continue;
+      if (item.kind !== "paper" || hasPrimary(childrenOf(item.key))) continue;
       const pdf = await ports.findPdf(item.key).catch((e) => {
         ports.log(`import_paper: Find Available PDF failed: ${describe(e)}`);
         return null;
@@ -150,7 +156,7 @@ export async function runImport(id: Identifier, ports: ImportPorts, opts: Import
   rest.catch((e) => ports.log(`import_paper: recording attachments of ${cid} failed: ${describe(e)}`));
   const complete = (await within(rest, deadline - Date.now())) !== TIMED_OUT;
 
-  const children = ports.children(top[0].key);
+  const children = childrenOf(top[0].key);
   const attachments = children.filter((c) => c.kind === "attachment");
   const result: ImportResult = {
     changeId: cid,

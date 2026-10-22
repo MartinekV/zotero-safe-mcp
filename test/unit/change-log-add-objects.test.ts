@@ -41,6 +41,12 @@ describe("addObjects", () => {
     expect(await log.isOwned(L, "PDFAAAAA")).toBe(true);
   });
 
+  it("records a late note's HTML like any agent note, so the user editing it later makes it theirs", async () => {
+    const { changeId } = await importPaper();
+    await log.addObjects(changeId, [{ libraryID: L, itemKey: "NOTEAAAA", kind: "note" }], [{ libraryID: L, noteKey: "NOTEAAAA", html: "<p>n</p>" }]);
+    expect(await log.agentNotes(L, ["NOTEAAAA"])).toEqual(new Map([["NOTEAAAA", { html: "<p>n</p>", userEdited: false }]]));
+  });
+
   it("refuses an unknown change and records nothing", async () => {
     await expect(log.addObjects("chg_nope", [{ libraryID: L, itemKey: "PDFAAAAA", kind: "attachment" }])).rejects.toThrow(/chg_nope/);
     expect(await log.isOwned(L, "PDFAAAAA")).toBe(false);

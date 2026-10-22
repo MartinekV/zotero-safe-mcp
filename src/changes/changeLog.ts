@@ -213,9 +213,10 @@ export function createChangeLog(opts: ChangeLogOptions) {
      * finished downloading later) as owned by that change, so its undo covers them. Use only for
      * objects saved by Zotero code that opens its own transactions; everything else goes through
      * recordWrite. `undone: true` means the change was undone meanwhile: the caller should then
-     * trash the late objects itself (they are still recorded, so they stay editable).
+     * trash the late objects itself (they are still recorded, so they stay editable). `written`:
+     * the HTML of each late note, as ChangeWriter.noteWritten (so the user can take it over).
      */
-    async addObjects(changeId: string, objects: readonly OwnedObject[]): Promise<{ undone: boolean }> {
+    async addObjects(changeId: string, objects: readonly OwnedObject[], written: readonly NoteVersion[] = []): Promise<{ undone: boolean }> {
       return db.executeTransaction(async () => {
         const [row] = await q(`SELECT undone FROM ${SCHEMA}.changes WHERE changeId = ?`, [changeId]);
         if (!row) throw new Error(`addObjects: no change ${changeId}`);
@@ -223,6 +224,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
         for (const o of objects) {
           await q(`INSERT OR IGNORE INTO ${SCHEMA}.owned_objects VALUES (?,?,?,?,?)`, [o.libraryID, o.itemKey, o.kind, changeId, t]);
         }
+        for (const v of written) await noteWritten(v, changeId, t);
         return { undone: row.undone === 1 };
       });
     },
