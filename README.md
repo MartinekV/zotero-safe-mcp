@@ -1,138 +1,88 @@
-# zotero-safe-mcp
+# Zotero Safe MCP
 
-A small, standalone Zotero plugin that lets an LLM agent (e.g. Claude Code running in a sandbox) read
-your local Zotero library and add notes, highlights, tags and papers, and undo its own changes, and
-nothing else. See [SPEC.md](SPEC.md) for the full design and safety rules.
+A Zotero plugin that gives MCP-capable AI agents access to your library. Agents can read
+everything and add notes, highlights, tags and papers. They can change or remove only what they
+added. They cannot execute any code on your machine through the MCP.
 
-The plugin registers three endpoints on Zotero's built-in HTTP server (port 23119):
+Requires Zotero 7 or later and works with "My Library" only. The plugin serves its MCP endpoint
+from inside Zotero whenever Zotero is open.
 
-- `POST /safe-mcp`: MCP over HTTP (JSON responses, stateless)
-- `POST /safe-mcp/image`: upload a PNG/JPEG for use in a note
-- `GET /safe-mcp/pdf/<attachmentKey>`: download a PDF attachment's file
+## Quick start
 
-Every request needs `Authorization: Bearer <token>`. It runs whenever Zotero is open; there is nothing
-to start by hand. Requires Zotero 7 to 10 (developed and tested on Zotero 10.0.6). Personal library
-("My Library") only; group libraries are not touched.
-
-## Setup (once)
-
-1. Build or download `zotero-safe-mcp.xpi` (`npm install && npm run build`).
-2. Install it in Zotero: Tools → Plugins → gear menu → Install Plugin From File…
-3. Open Zotero Settings → **Safe MCP**. Copy the token, or copy the ready-made command.
-4. On the host, only if the sandbox's network is restricted:
-   `sbx policy allow network localhost:23119`
-5. In the sandbox:
-   ```bash
-   claude mcp add --transport http zotero http://host.docker.internal:23119/safe-mcp \
-     --header "Authorization: Bearer <token>"
+1. Download `zotero-safe-mcp.xpi` from
+   [Releases](https://github.com/MartinekV/zotero-safe-mcp/releases), or build it with
+   `npm install && npm run build`.
+2. In Zotero: Tools → Plugins → ⚙ → *Install Plugin From File…*
+3. In Zotero Settings → **Safe MCP**, click *Copy token*.
+4. Add the server to your MCP client:
+   ```json
+   "zotero": {
+     "type": "http",
+     "url": "http://localhost:23119/safe-mcp",
+     "headers": { "Authorization": "Bearer <token>" }
+   }
    ```
+   If the agent runs in Docker, use `host.docker.internal` instead of `localhost`.
 
-To cut access quickly: `sbx policy rm network --resource localhost:23119`, or press
-**Regenerate token** in the settings pane (the old token stops working immediately).
+To revoke access, click *Regenerate token*.
 
-Prefs (Zotero Settings → Advanced → Config Editor):
+### Docker Sandboxes (`sbx`)
 
-| Pref | Default | Meaning |
-|---|---|---|
-| `extensions.zotero-safe-mcp.writesPerMinute` | `60` | write tool calls allowed per minute |
-| `extensions.zotero-safe-mcp.pdfUrlBase` | empty | base of URLs from `get_pdf_url`; empty = `http://host.docker.internal:<Zotero's port>` |
+With `sbx`, the real token never enters the sandbox. The MCP config holds a placeholder, and
+`sbx` swaps the real token in on each request.
+
+1. On the host, let the sandbox reach Zotero:
+   ```bash
+   sbx policy allow network localhost:23119
+   ```
+2. On the host, store the token from step 3 above as a secret:
+   ```bash
+   sbx secret set-custom \
+     --host host.docker.internal --host localhost --host 127.0.0.1 \
+     --env ZOTERO_MCP_TOKEN \
+     --value <your_actual_token>
+   ```
+   The command prints a placeholder (it looks like `sbx-cs-…`). Copy it.
+3. In the sandbox, add the server to your MCP client. Put the **placeholder** where the token
+   would go:
+   ```json
+   "zotero": {
+     "type": "http",
+     "url": "http://host.docker.internal:23119/safe-mcp",
+     "headers": { "Authorization": "Bearer <placeholder>" }
+   }
+   ```
 
 ## Tools
 
-| Tool | What it does |
+| | |
 |---|---|
-| `search_library` | quick search (all fields, tags, notes, annotations, full text), optional collection/tag filter |
-| `get_item` | metadata, attachments, child notes, tags, collections of one item |
-| `list_collections` | the collection tree |
-| `read_pdf_text` | a PDF's text per page, optional page ranges |
-| `get_pdf_url` | URL to `curl` a PDF to a file instead of reading it into context |
-| `list_annotations` | highlights and other annotations of an attachment, with `byLLM` |
-| `list_notes` | an item's child notes, or a collection's standalone notes, as Markdown, with `byLLM` |
-| `get_reader_state` | the item open in the selected reader tab, its current page and selected text |
-| `list_changes` | the agent's recent changes, for `undo` |
-| `add_highlight` | highlight a quoted passage (never green), comment prefixed `[LLM]` |
-| `create_note` | a note from Markdown (tables, math, `[@itemKey]` citations, uploaded images), tagged `[LLM]` |
-| `edit_note` | replace the content of a note the agent created; the old version is kept |
-| `add_tags` / `remove_tags` | add tags to any item; remove only tags the agent added |
-| `import_paper` | import by DOI, arXiv ID or PMID through Zotero's translators, PDF when available |
-| `trash` | move the agent's own notes, highlights and imported papers to the trash |
-| `undo` | reverse one of the agent's changes (default: the last one) |
+| **Read** | `search_library`, `get_item`, `list_collections`, `read_pdf_text`, `get_pdf_url`, `list_annotations`, `list_notes`, `get_reader_state` |
+| **Add** | `create_note`, `add_highlight`, `add_tags`, `import_paper` (DOI, arXiv ID, PMID) |
+| **Change its own work** | `edit_note`, `remove_tags`, `trash`, `undo`, `list_changes` |
 
-Every write returns a `changeId`. Images for notes are uploaded first and referenced by id:
+## Safety
 
-```bash
-curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: image/png' --data-binary @fig.png \
-  http://host.docker.internal:23119/safe-mcp/image      # → {"imageId": "img-…", "markdown": "![caption](image:img-…)", …}
-```
+- The agent can edit, remove or undo only what it created. If you edit one of its notes, that
+  note becomes yours.
+- Nothing is deleted outright. Removed items go to Zotero's trash.
+- Its notes are tagged `[LLM]` and its highlight comments start with `[LLM]`. It never uses
+  green.
+- It can't change metadata, collections or settings, read files from your computer, or open
+  arbitrary URLs.
+- Writes are limited to 60 per minute. You can change this with
+  `extensions.zotero-safe-mcp.writesPerMinute` in the Config Editor.
 
-## Safety model
-
-The agent is assumed to run with every permission inside its sandbox, and to hold the token. The
-plugin, not the agent, enforces what the token allows:
-
-- **Read anything, change only its own.** The plugin records every note, highlight, imported paper
-  (with its attachments) and tag (item + tag pair) it creates, in `safe-mcp.sqlite` in the Zotero data
-  directory, out of the sandbox's reach. Only those can be edited, removed, trashed or undone. Your own
-  papers, notes, highlights and tags are read-only to it, and tags you had before it added the same one
-  stay yours. Once you edit one of its notes in Zotero, that note (with its images) is yours for good:
-  it can no longer edit, trash or undo it, and `byLLM` turns false. Formatting-only changes (underline,
-  colour, image size) count as edits. Tags it added to the note stay its; a tag of its that you remove
-  and add back is yours.
-  Metadata, collections, saved searches and settings can't be changed at all.
-- **Marked.** Its notes get the tag `[LLM]` and its highlight comments start with `[LLM]`. It can't
-  add or remove the `[LLM]` tag itself. `byLLM` in read results comes from the registry, not the tag.
-- **Green is yours.** Highlights use named colors except green; hex codes are refused.
-- **Nothing is deleted.** Removal and undo move items to Zotero's trash; you can restore them.
-  Undo of the agent's note changes is refused once you edited the note. If you added a note, file or
-  highlight to one of its papers or PDFs, it can't trash (or undo the import of) that paper or PDF,
-  since yours would go to the trash with it.
-- **No files, no URLs, no code.** Papers come in by DOI, arXiv ID or PMID only; the PDF endpoint
-  serves only files of attachment items in the library that really are PDFs (`%PDF-` header); nothing runs scripts or touches host files.
-- **Rate limited.** Write tools are capped per minute (default 60); a refused call changes nothing.
-- **Kept out of browsers.** The token keeps other local apps and web pages out; requests with a browser
-  `Origin` header are rejected as well.
-
-Things to know:
-
-- **The token may appear in Zotero's debug log.** If you turn on Zotero's debug output (Help → Debug
-  Output Logging), Zotero itself logs request headers, including the bearer token. It is off by
-  default. Regenerate the token if you shared a debug log.
-- **No duplicate imports.** If a paper with the same DOI, arXiv ID or PMID is already in your library
-  (not in the trash), `import_paper` returns that item's key and imports nothing. The existing item stays
-  yours: the agent still can't change or trash it.
-- Anyone holding the token can use these tools (and nothing else in Zotero).
+Zotero's debug log records the token. If you share a debug log, regenerate the token afterwards.
+For the full rules, see [SPEC.md](SPEC.md).
 
 ## Development
 
-```bash
-npm install
-npm test                  # unit tests (vitest, plain Node)
-npm run build             # typecheck + build/addon/ + zotero-safe-mcp.xpi
-npm run test:integration  # end-to-end tests against a real headless Zotero 10.0.6 (Linux)
-```
+`npm test` runs the unit tests, and `npm run test:integration` runs the end-to-end tests
+against a headless Zotero. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-`npm run test:integration` builds the plugin, starts a fresh headless Zotero (Xvfb) with it, runs
-`test/integration/*.itest.ts` and stops Zotero again. First time on a machine, run
-`scripts/run-zotero-headless.sh install` (apt packages + Zotero download) or point `ZOTERO_APP` at an
-extracted Zotero. `ZBASE` (instance directory) and `ZPORT` (default 23300) select the instance, so
-several can run side by side:
+## License
 
-```bash
-ZBASE=/tmp/zotero-it ZPORT=23212 npm run test:integration
-```
-
-The tests never touch your real library (they talk only to `127.0.0.1:$ZPORT`). Before a release, also
-go through [docs/manual-test-checklist.md](docs/manual-test-checklist.md) in a real Zotero.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the code layout and how to add a tool or endpoint.
-
-## License and credits
-
-AGPL-3.0-or-later (see [LICENSE](LICENSE)).
-
-This plugin reuses code from [llm-for-zotero](https://github.com/yilewang/llm-for-zotero)
-by Yile Wang and contributors (AGPL-3.0), at commit `435dd19`
-(`435dd1928949ddb9361c2039da3d1ac96034c300`): the MCP protocol types, the quote matching and highlight
-positioning, the math tokenizer for notes, and the import-by-identifier steps. Every reused file starts
-with a header naming its source file, e.g.
-`// Adapted from llm-for-zotero (AGPL-3.0), src/services/pdf/pdfAnnotationResolver.ts@435dd19`.
+AGPL-3.0-or-later. Parts are adapted from
+[llm-for-zotero](https://github.com/yilewang/llm-for-zotero) (AGPL-3.0, commit `435dd19`), and
+each reused file names its source in a header.
