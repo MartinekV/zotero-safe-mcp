@@ -42,4 +42,21 @@ const files = {};
   }
 })(out);
 writeFileSync(join(root, "zotero-safe-mcp.xpi"), zipSync(files, { level: 9 }));
-console.log(`built zotero-safe-mcp.xpi (${Object.keys(files).length} files) and build/addon/`);
+
+// Zotero checks the manifest's update_url (the latest GitHub release's updates.json) for new versions.
+const releases = "https://github.com/MartinekV/zotero-safe-mcp/releases";
+const updates = {
+  addons: {
+    [pluginId]: {
+      updates: [
+        {
+          version: pkg.version,
+          update_link: `${releases}/download/v${pkg.version}/zotero-safe-mcp.xpi`,
+          applications: { zotero: { strict_min_version: "7.0" } },
+        },
+      ],
+    },
+  },
+};
+writeFileSync(join(root, "updates.json"), JSON.stringify(updates, null, 2) + "\n");
+console.log(`built zotero-safe-mcp.xpi (${Object.keys(files).length} files), updates.json and build/addon/`);

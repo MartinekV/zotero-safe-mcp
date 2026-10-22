@@ -9,7 +9,7 @@
   "applications": {
     "zotero": {
       "id": "__PLUGIN_ID__",
-      "update_url": "https://example.org/zotero-safe-mcp/updates.json",
+      "update_url": "https://github.com/MartinekV/zotero-safe-mcp/releases/latest/download/updates.json",
       "strict_min_version": "7.0",
       "strict_max_version": "10.*"
     }

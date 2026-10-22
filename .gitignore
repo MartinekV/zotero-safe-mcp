@@ -4,3 +4,5 @@ build/
 src/**/index.generated.ts
 .zotero-headless/
 *.tsbuildinfo
+.scratch/
+updates.json
