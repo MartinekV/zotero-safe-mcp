@@ -51,6 +51,7 @@ export async function editNote(w: ChangeWriter, libraryID: number, note: NoteLik
   w.saveNoteVersion({ libraryID, noteKey: note.key, html: previous });
   note.setNote(html);
   await note.save();
+  w.noteWritten({ libraryID, noteKey: note.key, html: note.getNote() });
   const data: EditNoteData = { libraryID, noteKey: note.key, html, droppedImages };
   w.data = data;
   w.summary = `Edited note ${note.key}`;
@@ -88,6 +89,7 @@ export function editNoteUndoHandler(store: NoteStore): UndoHandler {
       }
       note.setNote(replaceImageKeys(version.html, renamed));
       await note.save();
+      await ctx.noteWritten({ libraryID: version.libraryID, noteKey: version.noteKey, html: note.getNote() });
       const parts = [`Restored note ${version.noteKey} to its version before ${change.changeId}`];
       for (const [from, to] of renamed) parts.push(`re-imported image ${from} as ${to}`);
       if (missing.length) parts.push(`image${missing.length === 1 ? "" : "s"} ${missing.join(", ")} no longer exist${missing.length === 1 ? "s" : ""}`);

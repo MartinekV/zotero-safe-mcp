@@ -1,0 +1,103 @@
+// Ticket 14, end to end: once the user edits an agent's note in Zotero, it is the user's for good.
+import { beforeAll, describe, expect, it } from "vitest";
+import { callTool, zeval } from "./harness";
+
+const text = (r: any) => r.content[0].text as string;
+const TAKEN = /you edited this note in Zotero; it is now yours/;
+
+let paperKey: string;
+
+beforeAll(async () => {
+  paperKey = await zeval(`
+    const p = new Zotero.Item("book"); p.setField("title", "User edit ownership test paper"); await p.saveTx();
+    return p.key;
+  `);
+});
+
+async function createNote(markdown: string): Promise<{ key: string; changeId: string }> {
+  const r = await callTool("create_note", { parentItemKey: paperKey, markdown });
+  expect(r.isError).toBeFalsy();
+  return { key: r.structuredContent.noteKey, changeId: r.structuredContent.changeId };
+}
+
+/** The user edits the note in Zotero (what the note editor's save does). */
+async function userSets(key: string, from: string, to: string) {
+  await zeval(`
+    const n = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, ${JSON.stringify(key)});
+    n.setNote(n.getNote().replace(${JSON.stringify(from)}, ${JSON.stringify(to)})); await n.saveTx();
+  `);
+}
+
+async function noteState(key: string) {
+  return zeval(`
+    const n = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, ${JSON.stringify(key)});
+    return { html: n.getNote(), deleted: n.deleted, tags: n.getTags().map((t) => t.tag).sort() };
+  `);
+}
+
+async function byLLM(key: string): Promise<boolean> {
+  const notes = (await callTool("list_notes", { itemKey: paperKey })).structuredContent.notes;
+  return notes.find((n: any) => n.key === key).byLLM;
+}
+
+describe("a note the user edited in Zotero", () => {
+  it("is refused by edit_note, trash and undo of its creation and edits, and list_notes reports byLLM false", async () => {
+    const created = await createNote("agent version one");
+    const edited = await callTool("edit_note", { noteKey: created.key, markdown: "agent version two" });
+    expect(edited.isError).toBeFalsy();
+    expect(await byLLM(created.key)).toBe(true);
+
+    await userSets(created.key, "agent version two", "agent version two, and the user's thought");
+    const before = await noteState(created.key);
+
+    const e = await callTool("edit_note", { noteKey: created.key, markdown: "overwritten" });
+    expect(e.isError).toBe(true);
+    expect(text(e)).toMatch(TAKEN);
+    const t = await callTool("trash", { itemKeys: [created.key] });
+    expect(t.isError).toBe(true);
+    expect(text(t)).toMatch(TAKEN);
+    for (const changeId of [edited.structuredContent.changeId, created.changeId]) {
+      const u = await callTool("undo", { changeId });
+      expect(u.isError).toBe(true);
+      expect(text(u)).toMatch(TAKEN);
+    }
+    const d = await callTool("undo", {}); // the newest change is the edit
+    expect(d.isError).toBe(true);
+    expect(text(d)).toMatch(TAKEN);
+
+    expect(await noteState(created.key)).toEqual(before);
+    expect(await byLLM(created.key)).toBe(false);
+    const changes = (await callTool("list_changes", {})).structuredContent.changes;
+    expect(changes.find((c: any) => c.changeId === created.changeId).undone).toBe(false);
+  });
+
+  it("stays the user's after the user reverts the edit", async () => {
+    const { key } = await createNote("agent text");
+    await userSets(key, "agent text", "user text");
+    expect(await byLLM(key)).toBe(false); // the take-over is noticed (and recorded) here
+    await userSets(key, "user text", "agent text");
+    expect(await byLLM(key)).toBe(false);
+    expect(text(await callTool("edit_note", { noteKey: key, markdown: "again" }))).toMatch(TAKEN);
+  });
+
+  it("keeps the tags the agent added to it as the agent's: remove_tags still works", async () => {
+    const { key } = await createNote("tagged note");
+    expect((await callTool("add_tags", { itemKey: key, tags: ["agent-tag"] })).isError).toBeFalsy();
+    await userSets(key, "tagged note", "tagged note, edited");
+    const r = await callTool("remove_tags", { itemKey: key, tags: ["agent-tag"] });
+    expect(r.isError).toBeFalsy();
+    expect((await noteState(key)).tags).toEqual(["[LLM]"]);
+  });
+
+  it("a note the user didn't change stays the agent's (edits and trash still work)", async () => {
+    const { key } = await createNote("untouched");
+    // A save that leaves the content as it was (the note editor rewriting its formatting) isn't an edit.
+    await zeval(`
+      const n = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, ${JSON.stringify(key)});
+      n.setNote(n.getNote().replace("<p>", "\\n<p>")); await n.saveTx();
+    `);
+    expect(await byLLM(key)).toBe(true);
+    expect((await callTool("edit_note", { noteKey: key, markdown: "still mine" })).isError).toBeFalsy();
+    expect((await callTool("trash", { itemKeys: [key] })).isError).toBeFalsy();
+  });
+});

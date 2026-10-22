@@ -24,7 +24,7 @@ src/
   hooks/*.ts              startup/shutdown hooks           │ (gitignored; files named _* are skipped)
   undo/*.ts               one undo handler per change kind ┘
   changes/                change log + ownership registry (safe-mcp.sqlite attached to Zotero.DB), trash helpers
-  ownership/              pure ownership checks, write rate limiter
+  ownership/              ownership checks (agentOwned.ts: wired; userEdits.ts: user take-over of notes), write rate limiter
   images/                 POST /safe-mcp/image uploads: PNG/JPEG sniffing + size, in-memory store with caps
   notes/                  Markdown ↔ note HTML; zoteroLookups.ts = citation/image lookups for create/edit_note
                           noteVersions.ts = edit_note's version save/restore; zoteroNotes.ts = embedded images
@@ -107,11 +107,15 @@ async handler(args) {
 
 The `ChangeWriter` `w` (`src/changes/types.ts`) records, all with the change's `changeId`:
 `ownObject({ libraryID, itemKey, kind })` for every object created (notes, highlights, papers, their
-attachments), `ownTag` for each (item, tag) pair newly added (use `splitNewTags` from
+attachments), `noteWritten({ libraryID, noteKey, html })` with a note's HTML after every write that
+creates or changes its content (undo handlers: `ctx.noteWritten`; a later difference means the user edited
+the note, which makes it theirs), `ownTag` for each (item, tag) pair newly added (use `splitNewTags` from
 `ownership/checks.ts`: pairs that already existed are never recorded), `disownTag` when a pair is removed
 again, `saveNoteVersion` for the HTML before an edit, `data` for any other JSON the undo needs, and
 `summary`. Ownership queries: `changeLog().isOwned`, `ownedKeys`, `ownedTags`; checks that throw a clear
-`ToolError`: `requireOwned`, `requireOwnedTagPairs` (`src/ownership/checks.ts`). `byLLM` in read results
+`ToolError`: `requireOwned`, `requireOwnedTagPairs` (`src/ownership/checks.ts`). For objects, use
+`requireAgentOwned` / `agentOwnedKeys` (`src/ownership/agentOwned.ts`): they also leave out notes the
+user took over by editing them (`src/ownership/userEdits.ts`), and their embedded images. `byLLM` in read results
 always comes from the registry, never from the `[LLM]` tag. Trash, never erase: `setDeleted` in
 `src/changes/trash.ts`.
 

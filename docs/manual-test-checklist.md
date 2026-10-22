@@ -76,8 +76,8 @@ For each: check the result in Zotero, then `undo {"changeId":"<id>"}` and check 
       Reusing the same `imageId` is refused. A text file as an image → 415.
 - [ ] **edit_note** on that note (read it with `list_notes`, change the text, keep the image reference):
       new text, image still there, `[LLM]` tag still there.
-      → **undo**: previous text back. Now edit again, change the note by hand in Zotero, then undo
-      → refused ("changed since").
+      → **undo**: previous text back. Open and close the note in Zotero's editor without typing:
+      `list_notes` still says `byLLM: true` and `edit_note` still works.
 - [ ] **add_tags** `{"itemKey":"<paper>","tags":["agent-tag","mine"]}`: `agent-tag` added, `mine`
       reported as already present.
       → **undo**: `agent-tag` gone, `mine` still there.
@@ -102,6 +102,11 @@ For each: check the result in Zotero, then `undo {"changeId":"<id>"}` and check 
 - [ ] Green highlight: `add_highlight … "color":"green"`.
 - [ ] Hex color: `add_highlight … "color":"#ff0000"` (also `"#5fb236"`).
 - [ ] Editing your note: `edit_note {"noteKey":"<your note>","markdown":"x"}`.
+- [ ] A note of the agent's that you edited: have the agent create a note (with an uploaded image) and edit
+      it, then type a word into it in Zotero. `edit_note`, `trash` of the note, and `undo` of
+      the edit and of the creation are refused with "you edited this note in Zotero; it is now yours";
+      `list_notes` shows `byLLM: false`. Delete your word again: still refused. `remove_tags` of a tag the
+      agent added to that note still works.
 - [ ] Trashing your note, your highlight, your paper and its PDF: `trash` with each key, and once with one
       of yours mixed into a list of the agent's (nothing at all is trashed).
 - [ ] Removing your tag: `remove_tags {"itemKey":"<paper>","tags":["mine"]}`.

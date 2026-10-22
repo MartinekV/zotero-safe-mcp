@@ -1,5 +1,6 @@
 // The Zotero side of noteVersions.ts: notes and their embedded-image attachments
 // (exploration notes 05-note-html.md "Embedded images").
+import type { NoteReader } from "../ownership/userEdits";
 import type { NoteLike, NoteStore, SavedImage } from "./noteVersions";
 
 const EXTENSIONS: Record<string, string> = {
@@ -86,5 +87,17 @@ export const zoteroNoteStore: NoteStore = {
   async importImage(note, image) {
     const att = await importEmbeddedImage(note as unknown as Zotero.Item, fromBase64(image.base64), image.contentType);
     return att.key;
+  },
+};
+
+/** Current notes for src/ownership/userEdits.ts (user take-over of agent notes). */
+export const zoteroNoteReader: NoteReader = {
+  noteHtml(libraryID, key) {
+    const item = Zotero.Items.getByLibraryAndKey(libraryID, key);
+    return item && item.isNote() ? item.getNote() : null;
+  },
+  parentKey(libraryID, key) {
+    const item = Zotero.Items.getByLibraryAndKey(libraryID, key);
+    return (item && item.parentKey) || null;
   },
 };

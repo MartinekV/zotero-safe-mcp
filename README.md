@@ -74,12 +74,14 @@ plugin, not the agent, enforces what the token allows:
   (with its attachments) and tag (item + tag pair) it creates, in `safe-mcp.sqlite` in the Zotero data
   directory, out of the sandbox's reach. Only those can be edited, removed, trashed or undone. Your own
   papers, notes, highlights and tags are read-only to it, and tags you had before it added the same one
-  stay yours. Metadata, collections, saved searches and settings can't be changed at all.
+  stay yours. Once you edit one of its notes in Zotero, that note (with its images) is yours for good:
+  it can no longer edit, trash or undo it, and `byLLM` turns false. Tags it added to the note stay its.
+  Metadata, collections, saved searches and settings can't be changed at all.
 - **Marked.** Its notes get the tag `[LLM]` and its highlight comments start with `[LLM]`. It can't
   add or remove the `[LLM]` tag itself. `byLLM` in read results comes from the registry, not the tag.
 - **Green is yours.** Highlights use named colors except green; hex codes are refused.
 - **Nothing is deleted.** Removal and undo move items to Zotero's trash; you can restore them.
-  Undo of a note edit is refused if you changed the note since.
+  Undo of the agent's note changes is refused once you edited the note.
 - **No files, no URLs, no code.** Papers come in by DOI, arXiv ID or PMID only; the PDF endpoint
   serves only files of attachment items in the library; nothing runs scripts or touches host files.
 - **Rate limited.** Write tools are capped per minute (default 30); a refused call changes nothing.

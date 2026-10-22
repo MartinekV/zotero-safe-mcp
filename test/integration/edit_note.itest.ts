@@ -1,6 +1,6 @@
 // edit_note and its undo, end to end: ownership refusal, [LLM] tag, version restore, embedded images.
 import { beforeAll, describe, expect, it } from "vitest";
-import { callTool, zeval } from "./harness";
+import { callTool, request, zeval } from "./harness";
 
 const PNG_1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 const text = (r: any) => r.content[0].text as string;
@@ -36,17 +36,17 @@ async function createNote(markdown: string): Promise<string> {
   return r.structuredContent.noteKey;
 }
 
-/** Adds an embedded image to the note the way the note editor (or ticket 10's upload) does. */
-async function addImage(noteKey: string, alt: string): Promise<string> {
-  return zeval(`
-    const n = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, ${JSON.stringify(noteKey)});
-    const win = Zotero.getMainWindow();
-    const bytes = Uint8Array.from(atob(${JSON.stringify(PNG_1x1)}), (c) => c.charCodeAt(0));
-    const att = await Zotero.Attachments.importEmbeddedImage({ blob: new win.Blob([bytes], { type: "image/png" }), parentItemID: n.id });
-    n.setNote(n.getNote().replace(/<\\/div>$/, '<p><img alt=${JSON.stringify(alt)} width="1" height="1" data-attachment-key="' + att.key + '"></p></div>'));
-    await n.saveTx();
-    return att.key;
-  `);
+/**
+ * Creates a note with `text` and one embedded image (uploaded via POST /safe-mcp/image), as the agent
+ * does. (Adding the image through Zotero would be a user edit: the note would become the user's.)
+ */
+async function createNoteWithImage(text: string, alt: string): Promise<{ key: string; img: string }> {
+  const res = await request("/safe-mcp/image", { method: "POST", headers: { "Content-Type": "image/png" }, body: Buffer.from(PNG_1x1, "base64") });
+  expect(res.status).toBe(200);
+  const { imageId } = JSON.parse(res.body);
+  const r = await callTool("create_note", { parentItemKey: paperKey, markdown: `${text}\n\n![${alt}](image:${imageId})` });
+  expect(r.isError).toBeFalsy();
+  return { key: r.structuredContent.noteKey, img: r.structuredContent.imageKeys[0] };
 }
 
 async function listed(noteKey: string): Promise<string> {
@@ -84,7 +84,7 @@ describe("edit_note", () => {
     expect(text(again)).toMatch(/in the trash/);
   });
 
-  it("refuses to undo when the user changed the note in Zotero after the edit", async () => {
+  it("refuses to undo when the user changed the note in Zotero after the edit (the note is the user's now)", async () => {
     const key = await createNote("v1");
     const r = await callTool("edit_note", { noteKey: key, markdown: "v2" });
     await zeval(`
@@ -93,15 +93,14 @@ describe("edit_note", () => {
     `);
     const u = await callTool("undo", { changeId: r.structuredContent.changeId });
     expect(u.isError).toBe(true);
-    expect(text(u)).toMatch(/changed in Zotero after/);
+    expect(text(u)).toMatch(/you edited this note in Zotero; it is now yours/);
     expect(await listed(key)).toBe("v2 plus the user's words");
   });
 });
 
 describe("edit_note with embedded images", () => {
   it("a list_notes → edit_note round trip keeps the note's images, with their size", async () => {
-    const key = await createNote("Figure below");
-    const img = await addImage(key, "a dot");
+    const { key, img } = await createNoteWithImage("Figure below", "a dot");
     const md = await listed(key);
     expect(md).toBe(`Figure below\n\n![a dot](image:${img})`);
     const r = await callTool("edit_note", { noteKey: key, markdown: `Figure below, explained\n\n${md.split("\n\n")[1]}` });
@@ -113,8 +112,7 @@ describe("edit_note with embedded images", () => {
   });
 
   it("refuses image keys that are not the note's own images", async () => {
-    const other = await createNote("other");
-    const foreign = await addImage(other, "theirs");
+    const { img: foreign } = await createNoteWithImage("other", "theirs");
     const key = await createNote("mine");
     const r = await callTool("edit_note", { noteKey: key, markdown: `![x](image:${foreign})` });
     expect(r.isError).toBe(true);
@@ -122,8 +120,7 @@ describe("edit_note with embedded images", () => {
   });
 
   it("undo re-imports an image the edit dropped after Zotero erased it", async () => {
-    const key = await createNote("With image");
-    const img = await addImage(key, "dot");
+    const { key, img } = await createNoteWithImage("With image", "dot");
     const r = await callTool("edit_note", { noteKey: key, markdown: "No image any more" });
     // What Zotero does when the user closes the note in the editor:
     await zeval(`

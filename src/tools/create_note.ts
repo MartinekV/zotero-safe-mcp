@@ -58,6 +58,7 @@ export default defineTool<Args>({
       const imageKeys = await lookups.importImages(note);
       const title = note.getNoteTitle();
       w.ownObject({ libraryID: L, itemKey: note.key, kind: "note" });
+      w.noteWritten({ libraryID: L, noteKey: note.key, html: note.getNote() });
       w.summary = `Created note ${note.key} "${title}" ${where}${withImages(imageKeys)}`;
       return { noteKey: note.key, title, ...(imageKeys.length ? { imageKeys } : {}) };
     });

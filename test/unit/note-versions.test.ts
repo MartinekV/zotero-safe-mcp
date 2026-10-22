@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createChangeLog, type ChangeLog } from "../../src/changes/changeLog";
 import type { UndoHandler } from "../../src/changes/types";
 import { editNote, editNoteUndoHandler, type NoteLike, type NoteStore, type SavedImage } from "../../src/notes/noteVersions";
+import { userTakenKeys, type NoteReader } from "../../src/ownership/userEdits";
 import { sqliteDb } from "./sqliteDb";
 
 const L = 1;
@@ -137,6 +138,30 @@ describe("edit and undo", () => {
     notes.delete("NOTEAAAA");
     const r = await log.undo(changeId);
     expect(r.summary).toBe("Note NOTEAAAA no longer exists; nothing restored");
+  });
+});
+
+describe("what the agent last wrote (user take-over, ticket 14)", () => {
+  const reader: NoteReader = {
+    noteHtml: (_l, key) => notes.get(key)?.html ?? null,
+    parentKey: () => null,
+  };
+  const taken = (key: string) => userTakenKeys(log, reader, L, [key]).then((s) => s.has(key));
+
+  it("an edit records the HTML it wrote: the user's later change is noticed, the unchanged note is not", async () => {
+    await create("NOTEAAAA", wrap("<p>v1</p>"));
+    await edit("NOTEAAAA", wrap("<p>v2</p>"));
+    expect(await taken("NOTEAAAA")).toBe(false);
+    notes.get("NOTEAAAA")!.html = wrap("<p>v2 plus the user's words</p>");
+    expect(await taken("NOTEAAAA")).toBe(true);
+  });
+
+  it("undo of an edit records the restored HTML as the agent's", async () => {
+    await create("NOTEAAAA", wrap("<p>v1</p>"));
+    const { changeId } = await edit("NOTEAAAA", wrap("<p>v2</p>"));
+    await log.undo(changeId);
+    expect(notes.get("NOTEAAAA")!.html).toBe(wrap("<p>v1</p>"));
+    expect(await taken("NOTEAAAA")).toBe(false);
   });
 });
 

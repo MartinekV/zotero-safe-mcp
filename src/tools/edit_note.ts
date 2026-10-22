@@ -5,7 +5,7 @@ import { markdownToNoteHtml, type NoteLookups } from "../notes/markdownToNoteHtm
 import { editNote, type NoteLike } from "../notes/noteVersions";
 import { noteLookups, withImages } from "../notes/zoteroLookups";
 import { embeddedImageAttachment, zoteroNoteStore } from "../notes/zoteroNotes";
-import { requireOwned } from "../ownership/checks";
+import { requireAgentOwned } from "../ownership/agentOwned";
 import { defineTool, ToolError } from "../registry/types";
 import { KEY_PATTERN, libraryID, requireItem } from "../zotero/library";
 
@@ -15,7 +15,7 @@ export default defineTool<Args>({
   name: "edit_note",
   description:
     "Replace the content of a note this plugin created with new Markdown (same syntax as create_note). Notes made " +
-    "by the user are refused. To change part of a note, read it with list_notes, edit that Markdown and pass all of " +
+    "by the user, and notes the user has edited in Zotero since (they are the user's now), are refused. To change part of a note, read it with list_notes, edit that Markdown and pass all of " +
     "it: its ![alt](image:KEY) references keep the note's existing images; add new ones with " +
     "![caption](image:<imageId>) from POST /safe-mcp/image. The previous version is kept; undo " +
     `with the returned changeId restores it. The ${LLM_TAG} tag stays.`,
@@ -33,7 +33,7 @@ export default defineTool<Args>({
     const { noteKey, markdown } = args;
     const L = libraryID();
     const note = requireItem(noteKey);
-    requireOwned([noteKey], await changeLog().ownedKeys(L, [noteKey]), "edit");
+    await requireAgentOwned(L, [noteKey], "edit");
     if (!note.isNote()) throw new ToolError(`${noteKey} is a ${note.itemType}, not a note.`);
     if (note.deleted) throw new ToolError(`Note ${noteKey} is in the trash; nothing was changed.`);
 
