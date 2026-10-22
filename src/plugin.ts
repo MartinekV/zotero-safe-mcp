@@ -1,6 +1,6 @@
 // Plugin lifecycle: token, endpoints, settings pane, lifecycle hooks. Called from addon/bootstrap.js
 // through src/index.ts. Takes the Zotero object as a parameter so it can be unit-tested with a fake.
-import { PLUGIN_ID, TOKEN_PREF } from "./config";
+import { LOG_PREFIX, PLUGIN_ID, TOKEN_PREF } from "./config";
 import defaultEndpoints from "./endpoints/index.generated";
 import defaultHooks from "./hooks/index.generated";
 import { env } from "./env";
@@ -34,7 +34,7 @@ export function generateToken(): string {
 
 export function createPlugin({ zotero, endpoints = defaultEndpoints, hooks = defaultHooks }: PluginDeps) {
   const Z = zotero as any;
-  const log = (message: string) => Z.debug(`[safe-mcp] ${message}`);
+  const log = (message: string) => Z.debug(`${LOG_PREFIX} ${message}`);
   const registered = new Map<string, unknown>();
   const addedCodes: number[] = [];
   const startedHooks: LifecycleHook[] = [];

@@ -1,4 +1,5 @@
 // Minimal JSON Schema validator for tool arguments (only the keywords in JsonSchema).
+import { isPlainObject } from "../util/isPlainObject";
 import { JsonSchema } from "./types";
 
 /** Returns a list of human-readable problems; empty when `value` matches `schema`. */
@@ -29,7 +30,7 @@ export function validate(schema: JsonSchema, value: unknown, path = "arguments")
       errors.push(`${path} must have at most ${schema.maxItems} items`);
     if (schema.items) value.forEach((v, i) => errors.push(...validate(schema.items!, v, `${path}[${i}]`)));
   }
-  if (isObject(value)) {
+  if (isPlainObject(value)) {
     for (const key of schema.required ?? []) {
       if (!(key in value)) errors.push(`${path}.${key} is required`);
     }
@@ -42,13 +43,10 @@ export function validate(schema: JsonSchema, value: unknown, path = "arguments")
   return errors;
 }
 
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 function hasType(type: NonNullable<JsonSchema["type"]>, v: unknown): boolean {
   switch (type) {
-    case "object": return isObject(v);
+    case "object": return isPlainObject(v);
     case "array": return Array.isArray(v);
     case "integer": return Number.isInteger(v);
     case "number": return typeof v === "number" && Number.isFinite(v);

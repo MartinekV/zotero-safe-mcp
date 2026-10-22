@@ -1,8 +1,8 @@
 // Undo of remove_tags: puts back the tags it removed and owns them again (under the undone change).
 // A tag the item has again by then (the user re-added it) is left alone and stays the user's.
+import { quoteTags } from "../tags/quoteTags";
+import type { RemoveTagsData } from "../changes/data";
 import type { UndoHandler } from "../changes/types";
-
-export type RemoveTagsData = { libraryID: number; itemKey: string; removed: string[] };
 
 const handler: UndoHandler = {
   kind: "remove_tags",
@@ -17,7 +17,7 @@ const handler: UndoHandler = {
     }
     if (restored.length) await item.save();
     return restored.length
-      ? `Restored ${restored.map((t) => JSON.stringify(t)).join(", ")} on ${itemKey}`
+      ? `Restored ${quoteTags(restored)} on ${itemKey}`
       : `Nothing restored: ${itemKey} already has the tags again`;
   },
 };

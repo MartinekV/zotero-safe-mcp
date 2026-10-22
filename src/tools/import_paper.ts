@@ -1,15 +1,13 @@
+import { IMPORT_ATTACHMENT_TIMEOUT_MS as ATTACHMENT_TIMEOUT_MS, IMPORT_LOOKUP_TIMEOUT_MS as LOOKUP_TIMEOUT_MS, KEY_PATTERN } from "../config";
 import { parseIdentifier } from "../import/identifier";
 import { runImport } from "../import/runImport";
 import { zoteroImportPorts } from "../import/zoteroPorts";
 import { findExistingPaper } from "../import/zoteroDuplicates";
 import { defineTool, ToolError } from "../registry/types";
-import { KEY_PATTERN, libraryID, requireCollection } from "../zotero/library";
+import { libraryID, requireCollection, requireItem } from "../zotero/library";
 
 type Args = { identifier: string; collectionKey?: string };
 
-/** Budgets (see src/import/runImport.ts): the call holds the write queue for at most about their sum. */
-export const LOOKUP_TIMEOUT_MS = 30_000;
-export const ATTACHMENT_TIMEOUT_MS = 30_000;
 
 export default defineTool<Args>({
   name: "import_paper",
@@ -38,7 +36,7 @@ export default defineTool<Args>({
     const collectionID = args.collectionKey !== undefined ? requireCollection(args.collectionKey).id : undefined;
     const existing = await findExistingPaper(libraryID(), parsed.identifier);
     if (existing) {
-      const item = Zotero.Items.getByLibraryAndKey(libraryID(), existing.itemKey) as Zotero.Item;
+      const item = requireItem(existing.itemKey);
       return {
         duplicate: true,
         itemKey: existing.itemKey,

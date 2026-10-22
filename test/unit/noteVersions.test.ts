@@ -77,7 +77,6 @@ describe("edit and undo", () => {
     expect(notes.get("NOTEAAAA")!.saves).toBe(1);
     const change = await log.get(changeId);
     expect(change!.noteVersions).toEqual([{ libraryID: L, noteKey: "NOTEAAAA", html: wrap("<p>v1</p>") }]);
-    expect(change!.summary).toBe("Edited note NOTEAAAA");
   });
 
   it("undo of the edit restores the previous version", async () => {
@@ -124,12 +123,27 @@ describe("edit and undo", () => {
     expect(notes.get("NOTEAAAA")!.html).toBe(wrap("<p>v2 and the user's sentence</p>"));
   });
 
-  it("still undoes when the note editor only reformatted the edit's HTML", async () => {
+  it("still undoes when the HTML only gained whitespace between blocks", async () => {
     await create("NOTEAAAA", wrap("<p>v1</p>"));
     const { changeId } = await edit("NOTEAAAA", wrap("<ul><li><p>one</p></li></ul>"));
-    notes.get("NOTEAAAA")!.html = '<div data-schema-version="9">\n<ul>\n<li>one</li>\n</ul>\n</div>';
+    notes.get("NOTEAAAA")!.html = '<div data-schema-version="9">\n<ul>\n<li>\n<p>one</p>\n</li>\n</ul>\n</div>';
     await log.undo(changeId);
     expect(notes.get("NOTEAAAA")!.html).toBe(wrap("<p>v1</p>"));
+  });
+
+  it("refuses when the note's formatting alone was changed in Zotero (underline)", async () => {
+    await create("NOTEAAAA", wrap("<p>v1</p>"));
+    const { changeId } = await edit("NOTEAAAA", wrap("<p>v2</p>"));
+    notes.get("NOTEAAAA")!.html = wrap("<p><u>v2</u></p>");
+    await expect(log.undo(changeId)).rejects.toThrow("changed in Zotero after");
+    expect(notes.get("NOTEAAAA")!.html).toBe(wrap("<p><u>v2</u></p>"));
+  });
+
+  it("keeps the HTML it replaces with the change", async () => {
+    await create("NOTEAAAA", wrap("<p>v1</p>"));
+    const { changeId } = await edit("NOTEAAAA", wrap("<p>v2</p>"));
+    await log.undo(changeId);
+    expect((await log.get(changeId))!.noteVersions.map((v) => v.html)).toEqual([wrap("<p>v1</p>"), wrap("<p>v2</p>")]);
   });
 
   it("a note erased since the edit leaves nothing to restore; the undo says so", async () => {

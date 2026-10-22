@@ -2,16 +2,14 @@
 //   1. any Origin header → 403 (a browser made this request; SPEC: Auth, second layer)
 //   2. Authorization: Bearer <token> compared in constant time → 401 otherwise
 //   3. handler exceptions → JSON 500 (Zotero would otherwise send a bodyless 500)
-import { HttpHandler, HttpResponse } from "../registry/types";
+import { HttpHandler } from "../registry/types";
+import { errorDetail } from "../util/errors";
+import { jsonError } from "./json";
 
 export type ProtectOptions = {
   getToken(): string | undefined;
   log(message: string): void;
 };
-
-function jsonError(status: number, error: string, headers: Record<string, string> = {}): HttpResponse {
-  return { status, headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ error }) };
-}
 
 /** Compares two strings without returning early on the first differing character. */
 export function constantTimeEqual(a: string, b: string): boolean {
@@ -42,7 +40,7 @@ export function protect(handler: HttpHandler, opts: ProtectOptions): HttpHandler
     try {
       return await handler(req);
     } catch (e) {
-      opts.log(`${req.method} ${req.pathname} failed: ${e instanceof Error ? e.stack || e.message : String(e)}`);
+      opts.log(`${req.method} ${req.pathname} failed: ${errorDetail(e)}`);
       return jsonError(500, "Internal error");
     }
   };

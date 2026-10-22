@@ -1,5 +1,5 @@
-import { PDF_URL_BASE_PREF } from "../config";
-import { ITEM_KEY_PATTERN, pdfUrl } from "../pdf/attachmentKey";
+import { DEFAULT_ZOTERO_PORT, KEY_PATTERN, PDF_URL_BASE_PREF, ZOTERO_PORT_PREF } from "../config";
+import { pdfUrl } from "../pdf/attachmentKey";
 import { getPdfFile } from "../pdf/attachment";
 import { defineTool } from "../registry/types";
 
@@ -13,12 +13,12 @@ export default defineTool<{ attachmentKey: string }>({
     type: "object",
     additionalProperties: false,
     required: ["attachmentKey"],
-    properties: { attachmentKey: { type: "string", pattern: ITEM_KEY_PATTERN, description: "Key of the PDF attachment item" } },
+    properties: { attachmentKey: { type: "string", pattern: KEY_PATTERN, description: "Key of the PDF attachment item" } },
   },
   async handler({ attachmentKey }) {
     const file = await getPdfFile(attachmentKey);
     const base = Zotero.Prefs.get(PDF_URL_BASE_PREF, true) as string | undefined;
-    const port = Number(Zotero.Prefs.get("httpServer.port")) || 23119;
+    const port = Number(Zotero.Prefs.get(ZOTERO_PORT_PREF)) || DEFAULT_ZOTERO_PORT;
     const url = pdfUrl(base, port, attachmentKey);
     return {
       attachmentKey,

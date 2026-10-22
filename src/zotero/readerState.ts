@@ -2,6 +2,7 @@
 // Page and selection come from the reader's internal (underscore) objects, which can change between
 // Zotero versions, so each is read defensively: a failure becomes null plus a warning, never an error.
 // Shapes verified against Zotero 10.0.6 (reader/src/common/reader.js, reader/src/pdf/pdf-view.js).
+import { errorMessage } from "../util/errors";
 
 export type ReaderState = {
   /** true when the selected tab of the main window is a reader tab. */
@@ -56,7 +57,7 @@ function attempt<T>(what: string, warnings: string[], read: () => T): T | null {
   try {
     return read();
   } catch (e) {
-    warnings.push(`${what} unavailable: ${e instanceof Error ? e.message : String(e)}`);
+    warnings.push(`${what} unavailable: ${errorMessage(e)}`);
     return null;
   }
 }

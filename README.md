@@ -75,15 +75,19 @@ plugin, not the agent, enforces what the token allows:
   directory, out of the sandbox's reach. Only those can be edited, removed, trashed or undone. Your own
   papers, notes, highlights and tags are read-only to it, and tags you had before it added the same one
   stay yours. Once you edit one of its notes in Zotero, that note (with its images) is yours for good:
-  it can no longer edit, trash or undo it, and `byLLM` turns false. Tags it added to the note stay its.
+  it can no longer edit, trash or undo it, and `byLLM` turns false. Formatting-only changes (underline,
+  colour, image size) count as edits. Tags it added to the note stay its; a tag of its that you remove
+  and add back is yours.
   Metadata, collections, saved searches and settings can't be changed at all.
 - **Marked.** Its notes get the tag `[LLM]` and its highlight comments start with `[LLM]`. It can't
   add or remove the `[LLM]` tag itself. `byLLM` in read results comes from the registry, not the tag.
 - **Green is yours.** Highlights use named colors except green; hex codes are refused.
 - **Nothing is deleted.** Removal and undo move items to Zotero's trash; you can restore them.
-  Undo of the agent's note changes is refused once you edited the note.
+  Undo of the agent's note changes is refused once you edited the note. If you added a note, file or
+  highlight to one of its papers or PDFs, it can't trash (or undo the import of) that paper or PDF,
+  since yours would go to the trash with it.
 - **No files, no URLs, no code.** Papers come in by DOI, arXiv ID or PMID only; the PDF endpoint
-  serves only files of attachment items in the library; nothing runs scripts or touches host files.
+  serves only files of attachment items in the library that really are PDFs (`%PDF-` header); nothing runs scripts or touches host files.
 - **Rate limited.** Write tools are capped per minute (default 30); a refused call changes nothing.
 - **Kept out of browsers.** The token keeps other local apps and web pages out; requests with a browser
   `Origin` header are rejected as well.

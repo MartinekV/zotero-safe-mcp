@@ -1,7 +1,9 @@
+import { requireExactlyOne } from "../registry/args";
+import { KEY_PATTERN } from "../config";
 import { agentOwnedKeys } from "../ownership/agentOwned";
 import { noteHtmlToMarkdown } from "../notes/noteHtmlToMarkdown";
 import { defineTool, ToolError } from "../registry/types";
-import { KEY_PATTERN, libraryID, requireCollection, requireItem } from "../zotero/library";
+import { libraryID, requireCollection, requireItem } from "../zotero/library";
 
 type Args = { itemKey?: string; collectionKey?: string };
 
@@ -21,9 +23,7 @@ export default defineTool<Args>({
     },
   },
   async handler({ itemKey, collectionKey }) {
-    if ((itemKey === undefined) === (collectionKey === undefined)) {
-      throw new ToolError("Give exactly one of itemKey (child notes of an item) or collectionKey (standalone notes).");
-    }
+    requireExactlyOne(itemKey, collectionKey, "Give exactly one of itemKey (child notes of an item) or collectionKey (standalone notes).");
     let notes: Zotero.Item[];
     if (itemKey !== undefined) {
       const item = requireItem(itemKey);

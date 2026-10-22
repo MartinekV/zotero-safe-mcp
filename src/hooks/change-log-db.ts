@@ -3,6 +3,7 @@
 // tables. Re-attaches when Zotero reopens its connection; detaches on shutdown.
 import { changeLog } from "../changes";
 import { SCHEMA } from "../changes/changeLog";
+import { env } from "../env";
 import { LifecycleHook } from "../registry/types";
 
 export const DB_NAME = "safe-mcp";
@@ -37,7 +38,7 @@ const hook: LifecycleHook = {
       await db.queryAsync(`DETACH DATABASE ${SCHEMA}`);
     } catch (e) {
       // Fails inside a transaction or after Zotero closed the DB on quit; harmless.
-      Zotero.debug(`[safe-mcp] DETACH ${SCHEMA} failed: ${e}`);
+      env.log(`DETACH ${SCHEMA} failed: ${e}`);
     }
   },
 };

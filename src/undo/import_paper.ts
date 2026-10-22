@@ -2,7 +2,7 @@
 // (restorable; never erased). Attachments that finish downloading after the undo are trashed when
 // they are recorded (src/import/zoteroPorts.ts addLate).
 import type { UndoHandler } from "../changes/types";
-import { trashCreatedObjects } from "./create_note";
+import { trashCreatedObjects } from "../changes/trash";
 
 const handler: UndoHandler = { kind: "import_paper", undo: trashCreatedObjects };
 export default handler;

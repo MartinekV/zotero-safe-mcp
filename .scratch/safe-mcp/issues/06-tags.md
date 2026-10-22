@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** done
+**Status:** resolved
 
 - [x] Pre-existing pairs are not recorded and cannot be removed
 - [x] Removing a user's tag is refused; partial requests fail atomically with a clear error listing the offending tags

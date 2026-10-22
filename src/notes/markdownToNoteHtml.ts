@@ -1,6 +1,6 @@
 // Markdown → the HTML Zotero 10's note editor stores (schema version 9). Pure: no Zotero globals;
 // item and image lookups are injected. Format reference: exploration notes 05-note-html.md,
-// round-trip checked against the real note editor in test/integration/note-html.itest.ts.
+// round-trip checked against the real note editor in test/integration/markdownToNoteHtml.itest.ts.
 import { decodeHTML } from "entities";
 import { Marked, type Token, type TokenizerExtension, type Tokens } from "marked";
 import { ToolError } from "../registry/types";

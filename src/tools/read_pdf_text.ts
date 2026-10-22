@@ -1,4 +1,5 @@
-import { ITEM_KEY_PATTERN } from "../pdf/attachmentKey";
+import { KEY_PATTERN } from "../config";
+
 import { getPdfAttachment } from "../pdf/attachment";
 import { PAGES_PATTERN, parsePages, splitPages } from "../pdf/pages";
 import { defineTool, ToolError } from "../registry/types";
@@ -35,7 +36,7 @@ export default defineTool<Args>({
     additionalProperties: false,
     required: ["attachmentKey"],
     properties: {
-      attachmentKey: { type: "string", pattern: ITEM_KEY_PATTERN, description: "Key of the PDF attachment item" },
+      attachmentKey: { type: "string", pattern: KEY_PATTERN, description: "Key of the PDF attachment item" },
       pages: { type: "string", pattern: PAGES_PATTERN, maxLength: 200, description: 'Pages to return, e.g. "2" or "1-3,7" (default: all)' },
     },
   },

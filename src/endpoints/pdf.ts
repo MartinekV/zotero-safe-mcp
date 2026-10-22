@@ -5,11 +5,8 @@ import { PDF_PATH_PREFIX } from "../config";
 import { FILE_PATH_OPTION } from "../http/binaryFileResponse";
 import { isItemKey } from "../pdf/attachmentKey";
 import { getPdfFile, PdfFile } from "../pdf/attachment";
-import { EndpointDef, HttpHandler, HttpResponse, ToolError } from "../registry/types";
-
-function jsonError(status: number, error: string): HttpResponse {
-  return { status, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error }) };
-}
+import { jsonError } from "../http/json";
+import { EndpointDef, HttpHandler, ToolError } from "../registry/types";
 
 export function createPdfHandler(lookup: (key: string) => Promise<PdfFile>): HttpHandler {
   return async (req) => {

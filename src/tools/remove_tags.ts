@@ -1,9 +1,11 @@
+import { quoteTags } from "../tags/quoteTags";
+import { KEY_PATTERN } from "../config";
 import { changeLog } from "../changes";
 import { requireOwnedTagPairs } from "../ownership/checks";
 import { defineTool } from "../registry/types";
 import { TAG_LIST_SCHEMA, tagNames } from "../tags/tagArgs";
-import type { RemoveTagsData } from "../undo/remove_tags";
-import { KEY_PATTERN, libraryID, requireItem } from "../zotero/library";
+import type { RemoveTagsData } from "../changes/data";
+import { libraryID, requireItem } from "../zotero/library";
 
 type Args = { itemKey: string; tags: string[] };
 
@@ -40,8 +42,8 @@ export default defineTool<Args>({
       const data: RemoveTagsData = { libraryID: L, itemKey: item.key, removed };
       w.data = data;
       w.summary = removed.length
-        ? `Removed ${removed.map((t) => JSON.stringify(t)).join(", ")} from ${item.key}`
-        : `Forgot ${notPresent.map((t) => JSON.stringify(t)).join(", ")} on ${item.key} (no longer on the item)`;
+        ? `Removed ${quoteTags(removed)} from ${item.key}`
+        : `Forgot ${quoteTags(notPresent)} on ${item.key} (no longer on the item)`;
       return { itemKey: item.key, removed, notPresent };
     });
     return { changeId, ...result };

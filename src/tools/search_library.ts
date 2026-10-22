@@ -1,9 +1,8 @@
+import { KEY_PATTERN, SEARCH_DEFAULT_LIMIT as DEFAULT_LIMIT, SEARCH_MAX_LIMIT as MAX_LIMIT } from "../config";
 import { defineTool, ToolError } from "../registry/types";
-import { asItemLike, KEY_PATTERN, libraryID, requireCollection, zoteroLibrary } from "../zotero/library";
+import { asItemLike, libraryID, requireCollection, zoteroLibrary } from "../zotero/library";
 import { summarizeItem } from "../zotero/serialize";
 
-export const DEFAULT_LIMIT = 25;
-export const MAX_LIMIT = 100;
 
 type Args = { query: string; collectionKey?: string; tag?: string; limit?: number };
 

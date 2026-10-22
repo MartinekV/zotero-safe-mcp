@@ -2,9 +2,6 @@
 import { ToolError } from "../registry/types";
 import type { ItemLike, Library } from "./serialize";
 
-/** Item and collection keys as the spec accepts them in tool arguments. */
-export const KEY_PATTERN = "^[A-Z0-9]{8}$";
-
 export function libraryID(): number {
   return Zotero.Libraries.userLibraryID;
 }
@@ -15,9 +12,14 @@ export const zoteroLibrary: Library = {
   collection: (id) => Zotero.Collections.get(id) || false,
 };
 
+/** The item with this key in the user's library (trashed ones included), or null. */
+export function findItem(key: string): Zotero.Item | null {
+  return Zotero.Items.getByLibraryAndKey(libraryID(), key) || null;
+}
+
 /** The item with this key, trashed ones included; ToolError if there is none. */
 export function requireItem(key: string): Zotero.Item {
-  const item = Zotero.Items.getByLibraryAndKey(libraryID(), key);
+  const item = findItem(key);
   if (!item) throw new ToolError(`No item with key ${key} in the library`);
   return item;
 }

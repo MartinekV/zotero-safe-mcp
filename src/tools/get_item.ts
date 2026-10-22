@@ -1,5 +1,6 @@
+import { KEY_PATTERN } from "../config";
 import { defineTool } from "../registry/types";
-import { asItemLike, KEY_PATTERN, requireItem, zoteroLibrary } from "../zotero/library";
+import { asItemLike, requireItem, zoteroLibrary } from "../zotero/library";
 import { describeItem } from "../zotero/serialize";
 
 export default defineTool<{ itemKey: string }>({

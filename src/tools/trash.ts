@@ -1,16 +1,17 @@
+import { KEY_PATTERN } from "../config";
 import { changeLog } from "../changes";
 import { annotationSnapshot } from "../highlight/annotationItem";
 import { describeOutcome, setDeleted } from "../changes/trash";
-import { requireAgentOwned } from "../ownership/agentOwned";
+import { requireAgentOwned, requireNoUserChildren } from "../ownership/agentOwned";
 import { defineTool, ToolError } from "../registry/types";
-import type { TrashData } from "../undo/trash";
-import { KEY_PATTERN, libraryID } from "../zotero/library";
+import type { TrashData } from "../changes/data";
+import { findItem, libraryID, requireItem } from "../zotero/library";
 
 export default defineTool<{ itemKeys: string[] }>({
   name: "trash",
   description:
     "Move notes, highlights and imported papers this plugin created to Zotero's trash (never deleted permanently; " +
-    "undo restores them). The user's own items, and notes the user has edited in Zotero, are refused, and then nothing is trashed. Returns a changeId.",
+    "undo restores them). The user's own items, notes the user has edited in Zotero, and items the user added notes, files or highlights to are refused, and then nothing is trashed. Returns a changeId.",
   write: true,
   inputSchema: {
     type: "object",
@@ -23,16 +24,17 @@ export default defineTool<{ itemKeys: string[] }>({
   async handler(args) {
     const L = libraryID();
     const keys = [...new Set(args.itemKeys)];
-    const missing = keys.filter((k) => !Zotero.Items.getByLibraryAndKey(L, k));
+    const missing = keys.filter((k) => !findItem(k));
     if (missing.length) throw new ToolError(`No item with key ${missing.join(", ")} in the library; nothing was trashed.`);
     await requireAgentOwned(L, keys, "trash");
-    const already = keys.filter((k) => (Zotero.Items.getByLibraryAndKey(L, k) as Zotero.Item).deleted);
+    await requireNoUserChildren(L, keys, "trash");
+    const already = keys.filter((k) => requireItem(k).deleted);
     if (already.length === keys.length) throw new ToolError(`Already in the trash: ${already.join(", ")}.`);
 
     const { changeId, result } = await changeLog().recordWrite({ tool: "trash", args }, async (w) => {
       // Copies of highlights, so undo can recreate them if the user empties the trash in between.
       const annotations = keys
-        .map((k) => Zotero.Items.getByLibraryAndKey(L, k) as Zotero.Item)
+        .map(requireItem)
         .filter((i) => i.isAnnotation() && !i.deleted)
         .map(annotationSnapshot);
       const outcome = await setDeleted(L, keys, true);

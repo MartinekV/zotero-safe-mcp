@@ -1,11 +1,9 @@
 // Looking up attachment items by key for the PDF tools and GET /safe-mcp/pdf/<key>.
 // Files are only ever resolved through the attachment item (getFilePathAsync), never from a client path.
 import { ToolError } from "../registry/types";
+import { libraryID } from "../zotero/library";
 import { isItemKey } from "./attachmentKey";
-
-function libraryID(): number {
-  return Zotero.Libraries.userLibraryID;
-}
+import { hasPdfHeader, PDF_HEADER_WINDOW } from "./pdfHeader";
 
 /** A file attachment (PDF, EPUB, snapshot …) in the user's library, or ToolError. */
 export async function getFileAttachment(key: string): Promise<Zotero.Item> {
@@ -31,6 +29,9 @@ export async function getPdfFile(key: string): Promise<PdfFile> {
   const item = await getPdfAttachment(key);
   const path = await item.getFilePathAsync();
   if (!path) throw new ToolError(`The PDF of attachment ${key} is not available on this computer (not downloaded?)`);
+  if (!hasPdfHeader(await IOUtils.read(path, { maxBytes: PDF_HEADER_WINDOW }))) {
+    throw new ToolError(`The file of attachment ${key} is not a PDF (no %PDF- header)`);
+  }
   const { size } = await IOUtils.stat(path);
   return { path, size: size ?? 0 };
 }

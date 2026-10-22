@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 05
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests: content validation (magic bytes, size limit, wrong type), id lookup, cap enforcement
 

@@ -97,6 +97,51 @@ describe("import_paper over the network", () => {
   });
 });
 
+describe("an imported paper the user added to", () => {
+  it("trash and undo refuse it (and its PDF) while it has the user's note and highlight; nothing changes", { timeout: 3 * NET }, async () => {
+    let r = await callTool("import_paper", { identifier: "arXiv:1810.04805" });
+    for (let i = 0; i < 2 && r.isError && /No items returned|did not answer/.test(text(r)); i++) {
+      await new Promise((res) => setTimeout(res, 3000));
+      r = await callTool("import_paper", { identifier: "arXiv:1810.04805" });
+    }
+    expect(r.isError, text(r)).toBeFalsy();
+    const out = r.structuredContent;
+    expect(out.pdfAttachmentKey).toMatch(/^[A-Z0-9]{8}$/);
+
+    // The user writes a note under the paper and highlights its PDF.
+    const user = await zeval(`
+      const L = Zotero.Libraries.userLibraryID;
+      const paper = Zotero.Items.getByLibraryAndKey(L, ${JSON.stringify(out.itemKey)});
+      const pdf = Zotero.Items.getByLibraryAndKey(L, ${JSON.stringify(out.pdfAttachmentKey)});
+      const n = new Zotero.Item("note"); n.parentID = paper.id; n.setNote("<p>my own thoughts</p>"); await n.saveTx();
+      const a = await Zotero.Annotations.saveFromJSON(pdf, {
+        key: Zotero.DataObjectUtilities.generateKey(), type: "highlight", text: "BERT", comment: "mine", color: "#5fb236",
+        pageLabel: "1", sortIndex: "00000|000010|00010", position: { pageIndex: 0, rects: [[100, 700, 150, 710]] },
+      });
+      return { noteKey: n.key, annotKey: a.key };
+    `);
+    const all = [out.itemKey, out.pdfAttachmentKey, user.noteKey, user.annotKey];
+    const states = async () => Promise.all(all.map(async (k) => (await item(k))?.deleted));
+    expect(await states()).toEqual([false, false, false, false]);
+
+    const tp = await callTool("trash", { itemKeys: [out.itemKey] });
+    expect(tp.isError).toBe(true);
+    expect(text(tp)).toContain(user.noteKey);
+    expect(text(tp)).toContain(user.annotKey);
+    const ta = await callTool("trash", { itemKeys: [out.pdfAttachmentKey] });
+    expect(ta.isError).toBe(true);
+    expect(text(ta)).toContain(user.annotKey);
+    const u = await callTool("undo", { changeId: out.changeId });
+    expect(u.isError).toBe(true);
+    expect(text(u)).toContain(user.noteKey);
+    expect(text(u)).toContain(user.annotKey);
+
+    expect(await states()).toEqual([false, false, false, false]);
+    const changes = (await callTool("list_changes", { limit: 200 })).structuredContent.changes;
+    expect(changes.find((c: any) => c.changeId === out.changeId).undone).toBe(false);
+  });
+});
+
 describe("import_paper duplicate check", () => {
   // A paper the user added by hand; `fields` are set with setField.
   const userPaper = (itemType: string, fields: Record<string, string>, trashed = false) => zeval(`

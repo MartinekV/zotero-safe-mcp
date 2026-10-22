@@ -1,8 +1,10 @@
+import { quoteTags } from "../tags/quoteTags";
+import { KEY_PATTERN } from "../config";
 import { changeLog } from "../changes";
 import { splitNewTags } from "../ownership/checks";
 import { defineTool, ToolError } from "../registry/types";
 import { TAG_LIST_SCHEMA, requireTaggableItem, tagNames } from "../tags/tagArgs";
-import { KEY_PATTERN, libraryID } from "../zotero/library";
+import { libraryID } from "../zotero/library";
 
 type Args = { itemKey: string; tags: string[] };
 
@@ -32,7 +34,7 @@ export default defineTool<Args>({
     );
 
     if (!added.length) {
-      throw new ToolError(`${item.key} already has ${tags.map((t) => JSON.stringify(t)).join(", ")}; nothing was changed.`);
+      throw new ToolError(`${item.key} already has ${quoteTags(tags)}; nothing was changed.`);
     }
 
     const { changeId, result } = await changeLog().recordWrite({ tool: "add_tags", args }, async (w) => {
@@ -42,7 +44,7 @@ export default defineTool<Args>({
         w.ownTag({ libraryID: L, itemKey: item.key, tag });
       }
       await item.save();
-      w.summary = `Added ${added.map((t) => JSON.stringify(t)).join(", ")} to ${item.key}`;
+      w.summary = `Added ${quoteTags(added)} to ${item.key}`;
       return { itemKey: item.key, added, alreadyPresent };
     });
     return { changeId, ...result };

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests for key validation and page-range parsing
 - [x] `get_pdf_url` returns a URL the sandbox can use (`http://host.docker.internal:23119/safe-mcp/pdf/<key>`; host configurable in prefs)
@@ -28,3 +28,5 @@
 - Binary streaming: `src/http/binaryFileResponse.ts` wraps `_requestFinished` only for responses on `/safe-mcp/pdf/`
   carrying the `safeMcpFilePath` option; unpatch restores the original only if nobody wrapped on top (else ours becomes a
   pass-through). Verified live: 87 633-byte PDF identical (`cmp`), patch gone after disable, back after enable.
+- **Review fix (2026-10-22):** the PDF endpoint and get_pdf_url also require a `%PDF-` header within the
+  file's first 1 KB (`src/pdf/pdfHeader.ts`); otherwise 404.

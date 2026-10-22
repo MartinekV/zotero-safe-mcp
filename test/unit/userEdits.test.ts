@@ -51,10 +51,18 @@ describe("userTakenKeys", () => {
     expect(await taken(["NOTEAAAA", "NOTEBBBB"])).toEqual(new Set(["NOTEAAAA"]));
   });
 
-  it("the note editor reformatting the HTML without changing the content is not a user edit", async () => {
-    await agentWrites("NOTEAAAA", wrap("<ul><li><p>one</p></li></ul>"));
-    html.set("NOTEAAAA", '<div data-schema-version="9">\n<ul>\n<li>one</li>\n</ul>\n</div>');
+  it("whitespace between blocks and attribute order are not a user edit", async () => {
+    await agentWrites("NOTEAAAA", wrap('<ul><li><p>one <a href="x" rel="r">l</a></p></li></ul>'));
+    html.set("NOTEAAAA", '<div data-schema-version="9">\n<ul>\n<li>\n<p>one <a rel="r" href="x">l</a></p>\n</li>\n</ul>\n</div>');
     expect(await taken(["NOTEAAAA"])).toEqual(new Set());
+  });
+
+  it("a formatting-only edit (underline, colour) is a user edit", async () => {
+    await agentWrites("NOTEAAAA", wrap("<p>one</p>"));
+    await agentWrites("NOTEBBBB", wrap("<p>two</p>"));
+    html.set("NOTEAAAA", wrap("<p><u>one</u></p>"));
+    html.set("NOTEBBBB", wrap('<p><span style="color: #ff2020">two</span></p>'));
+    expect(await taken(["NOTEAAAA", "NOTEBBBB"])).toEqual(new Set(["NOTEAAAA", "NOTEBBBB"]));
   });
 
   it("is permanent: the user reverting their edit doesn't hand the note back", async () => {

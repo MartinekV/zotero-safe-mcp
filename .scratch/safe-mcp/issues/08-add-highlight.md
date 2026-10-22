@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 07
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests: color rule (every allowed name, green, hex, case), text matching over synthetic glyph data (hyphenation, line breaks, multiple occurrences, not found)
 - [x] Annotation trash/undo behaviour follows the exploration notes' answer to the SPEC open question (keep a JSON copy for undo if trashing is not restorable)

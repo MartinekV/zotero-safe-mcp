@@ -7,9 +7,10 @@ import { runImport, type ImportPorts, type SavedObject } from "../../src/import/
 
 const DOI = { type: "DOI", value: "10.1038/nature12373" } as const;
 const PAPER: SavedObject = { key: "PAPERAAA", kind: "paper", title: "Nanometre-scale thermometry" };
-const NOTE: SavedObject = { key: "NOTEAAAA", kind: "note" };
-const PDF: SavedObject = { key: "PDFAAAAA", kind: "attachment", contentType: "application/pdf", title: "Full Text" };
-const SNAP: SavedObject = { key: "SNAPAAAA", kind: "attachment", contentType: "text/html", title: "Snapshot" };
+const NOTE: SavedObject = { key: "NOTEAAAA", kind: "note", parentKey: PAPER.key };
+const PDF: SavedObject = { key: "PDFAAAAA", kind: "attachment", contentType: "application/pdf", title: "Full Text", parentKey: PAPER.key };
+const SNAP: SavedObject = { key: "SNAPAAAA", kind: "attachment", contentType: "text/html", title: "Snapshot", parentKey: PAPER.key };
+const USER_NOTE: SavedObject = { key: "USERNOTE", kind: "note", parentKey: PAPER.key };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Runs `p` to completion, firing every pending fake timer in time order (budgets included). */
@@ -24,23 +25,20 @@ function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-/** A fake library + change log. `children` is what each item has right now. */
+/** A fake library + change log. */
 function fake(over: Partial<ImportPorts> = {}) {
   const owned = new Map<string, string[]>(); // changeId → keys
-  const children = new Map<string, SavedObject[]>();
   const calls: string[] = [];
   const discarded: string[] = [];
   let n = 0;
   const ports: ImportPorts = {
     lookup: async () => (calls.push("lookup"), [{ itemType: "journalArticle" }]),
-    async save(_json, onSaved) {
+    async save(_json, onSaved, onAttachment) {
       calls.push("save");
-      children.set(PAPER.key, [NOTE]); // translator notes are saved with the item
-      onSaved([PAPER]);
+      onSaved([PAPER, NOTE]); // translator notes are saved with the item
       await sleep(5);
-      children.get(PAPER.key)!.push(PDF); // attachments download afterwards
+      onAttachment(PDF); // attachments download afterwards
     },
-    children: (key) => [...(children.get(key) ?? [])],
     async findPdf() {
       calls.push("findPdf");
       return null;
@@ -59,7 +57,7 @@ function fake(over: Partial<ImportPorts> = {}) {
     log: () => {},
     ...over,
   };
-  return { ports, owned, children, calls, discarded };
+  return { ports, owned, calls, discarded };
 }
 
 const opts = { lookupTimeoutMs: 100, attachmentTimeoutMs: 100, findPdf: true };
@@ -86,13 +84,12 @@ describe("runImport", () => {
 
   it("looks for an available PDF when the translator gave none, and records it as owned", async () => {
     const f = fake({
-      async save(_j, onSaved) {
-        f.children.set(PAPER.key, [SNAP]);
+      async save(_j, onSaved, onAttachment) {
         onSaved([PAPER]);
+        onAttachment(SNAP);
       },
-      async findPdf(key) {
+      async findPdf() {
         f.calls.push("findPdf");
-        f.children.get(key)!.push(PDF);
         return PDF;
       },
     });
@@ -147,10 +144,10 @@ describe("runImport", () => {
   it("returns once the attachment budget is used up; attachments finishing later are still recorded under that change", async () => {
     const download = deferred();
     const f = fake({
-      async save(_j, onSaved) {
+      async save(_j, onSaved, onAttachment) {
         onSaved([PAPER]);
         await download.promise;
-        f.children.set(PAPER.key, [PDF]);
+        onAttachment(PDF);
       },
     });
     const t0 = Date.now();
@@ -183,5 +180,21 @@ describe("runImport", () => {
     const f = fake({ record: () => Promise.reject(new Error("disk full")) });
     await expect(settle(runImport(DOI, f.ports, opts))).rejects.toThrow(/disk full/);
     expect(f.discarded.sort()).toEqual([NOTE.key, PAPER.key].sort());
+  });
+
+  it("records only what the save step and the PDF search report, never other children the item gets meanwhile", async () => {
+    const f = fake({
+      async save(_j, onSaved, onAttachment) {
+        onSaved([PAPER, NOTE]);
+        await sleep(5);
+        onAttachment(PDF);
+      },
+    });
+    const r = await settle(runImport(DOI, f.ports, opts));
+    // A note the user wrote under the new item during the downloads is not in any port's report.
+    expect(f.owned.get("chg_1")!.sort()).toEqual([NOTE.key, PAPER.key, PDF.key].sort());
+    expect(f.owned.get("chg_1")).not.toContain(USER_NOTE.key);
+    expect(r.notes).toEqual([NOTE.key]);
+    expect(r.attachments).toEqual([PDF]);
   });
 });

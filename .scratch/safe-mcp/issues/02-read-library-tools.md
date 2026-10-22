@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** done
+**Status:** resolved
 
 - [x] `search_library` supports `query`, `collectionKey`, `tag`, `limit` (sane default and max)
 - [x] Unknown keys produce clear tool errors

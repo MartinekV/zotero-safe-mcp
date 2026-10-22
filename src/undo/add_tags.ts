@@ -1,8 +1,7 @@
 // Undo of add_tags: removes the pairs that change still owns (a pair removed since, by remove_tags or
 // a later add_tags taking it over, is no longer the change's) and forgets them.
+import { quoteTags } from "../tags/quoteTags";
 import type { OwnedTag, UndoHandler } from "../changes/types";
-
-const quote = (tags: string[]) => tags.map((t) => JSON.stringify(t)).join(", ");
 
 const handler: UndoHandler = {
   kind: "add_tags",
@@ -22,7 +21,7 @@ const handler: UndoHandler = {
         await ctx.disownTag(t);
       }
       if (item && removed.length) await item.save();
-      if (removed.length) parts.push(`Removed ${quote(removed)} from ${itemKey}`);
+      if (removed.length) parts.push(`Removed ${quoteTags(removed)} from ${itemKey}`);
     }
     return parts.join("; ") || "Nothing to remove: the tags are no longer on the item";
   },

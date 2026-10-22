@@ -6,7 +6,7 @@ Security: raw HTML in the Markdown is escaped, not passed through; link URLs res
 
 **Blocked by:** 01 (for the build/test setup)
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests for every construct listed above, including escaping of raw HTML and rejection/neutralisation of `javascript:` links
 - [x] Output format checked against the exploration notes on note-editor schema (math, citations, images)
