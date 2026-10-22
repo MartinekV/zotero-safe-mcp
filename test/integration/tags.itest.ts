@@ -1,6 +1,6 @@
 // add_tags, remove_tags and undo of both, end to end.
 import { beforeEach, describe, expect, it } from "vitest";
-import { callTool, zeval } from "./harness";
+import { callTool, setPluginEnabled, zeval } from "./harness";
 
 const text = (r: any) => r.content[0].text as string;
 
@@ -159,5 +159,24 @@ describe("undo", () => {
     `);
     expect((await callTool("undo", { changeId })).isError).toBeFalsy();
     expect((await callTool("remove_tags", { itemKey: paper, tags: ["llm-a"] })).isError).toBe(true);
+  });
+});
+
+describe("a tag pair the user removes in Zotero", () => {
+  it("is no longer the agent's, even after the user adds the same tag back: remove_tags and undo leave it", async () => {
+    const added = await callTool("add_tags", { itemKey: paper, tags: ["agent-then-user"] });
+    expect(added.isError).toBeFalsy();
+    for (const op of ["removeTag", "addTag"]) {
+      await zeval(`
+        const i = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, ${JSON.stringify(paper)});
+        i.${op}("agent-then-user"); await i.saveTx();
+        await Zotero.Promise.delay(300); // the plugin's Notifier observer runs after the commit
+      `);
+    }
+    const r = await callTool("remove_tags", { itemKey: paper, tags: ["agent-then-user"] });
+    expect(r.isError).toBe(true);
+    expect(text(r)).toMatch(/not added by this plugin/);
+    await callTool("undo", { changeId: added.structuredContent.changeId });
+    expect(await names(paper)).toContain("agent-then-user");
   });
 });

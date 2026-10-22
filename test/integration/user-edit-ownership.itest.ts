@@ -1,6 +1,6 @@
 // Ticket 14, end to end: once the user edits an agent's note in Zotero, it is the user's for good.
 import { beforeAll, describe, expect, it } from "vitest";
-import { callTool, zeval } from "./harness";
+import { callTool, setPluginEnabled, zeval } from "./harness";
 
 const text = (r: any) => r.content[0].text as string;
 const TAKEN = /you edited this note in Zotero; it is now yours/;
@@ -80,6 +80,15 @@ describe("a note the user edited in Zotero", () => {
     expect(text(await callTool("edit_note", { noteKey: key, markdown: "again" }))).toMatch(TAKEN);
   });
 
+  it("stays the user's after the user reverts the edit before any tool looked at it", async () => {
+    const { key } = await createNote("agent draft");
+    await userSets(key, "agent draft", "user draft");
+    await zeval("await Zotero.Promise.delay(300);"); // the plugin's Notifier observer runs after the commit
+    await userSets(key, "user draft", "agent draft");
+    expect(text(await callTool("edit_note", { noteKey: key, markdown: "again" }))).toMatch(TAKEN);
+    expect(await byLLM(key)).toBe(false);
+  });
+
   it("keeps the tags the agent added to it as the agent's: remove_tags still works", async () => {
     const { key } = await createNote("tagged note");
     expect((await callTool("add_tags", { itemKey: key, tags: ["agent-tag"] })).isError).toBeFalsy();
@@ -133,5 +142,26 @@ describe("a note the user edited in Zotero", () => {
     expect(after).toBe(before.html); // the editor doesn't save on open/close
     expect(await byLLM(key)).toBe(true);
     expect((await callTool("edit_note", { noteKey: key, markdown: "still the agent's" })).isError).toBeFalsy();
+  });
+
+  it("is not watched while the plugin is disabled (its observer is gone); the check when a tool looks remains", async () => {
+    const { key } = await createNote("draft while off");
+    await setPluginEnabled(false);
+    try {
+      await userSets(key, "draft while off", "user's words while off");
+      await zeval("await Zotero.Promise.delay(300);");
+      await userSets(key, "user's words while off", "draft while off");
+    } finally {
+      await setPluginEnabled(true);
+    }
+    // Reverted while nothing watched: indistinguishable from no edit.
+    expect(await byLLM(key)).toBe(true);
+    await setPluginEnabled(false);
+    try {
+      await userSets(key, "draft while off", "kept edit while off");
+    } finally {
+      await setPluginEnabled(true);
+    }
+    expect(text(await callTool("edit_note", { noteKey: key, markdown: "x" }))).toMatch(TAKEN);
   });
 });

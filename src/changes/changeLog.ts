@@ -276,6 +276,20 @@ export function createChangeLog(opts: ChangeLogOptions) {
       }
     },
 
+    /**
+     * Forgets pairs removed from their item outside the plugin (hooks/ownership-watch.ts) at time
+     * `removedAt`. A pair owned again since (undo of remove_tags) is kept.
+     */
+    async disownRemovedTags(pairs: readonly OwnedTag[], removedAt: number): Promise<void> {
+      await db.executeTransaction(async () => {
+        for (const t of pairs) {
+          await q(`DELETE FROM ${SCHEMA}.owned_tags WHERE libraryID = ? AND itemKey = ? AND tag = ? AND createdAt <= ?`, [
+            t.libraryID, t.itemKey, t.tag, removedAt,
+          ]);
+        }
+      });
+    },
+
     /** Tags on this item that the plugin added. */
     async ownedTags(libraryID: number, itemKey: string): Promise<Set<string>> {
       const rows = await q(`SELECT tag FROM ${SCHEMA}.owned_tags WHERE libraryID = ? AND itemKey = ?`, [libraryID, itemKey]);
