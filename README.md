@@ -34,7 +34,7 @@ Prefs (Zotero Settings → Advanced → Config Editor):
 
 | Pref | Default | Meaning |
 |---|---|---|
-| `extensions.zotero-safe-mcp.writesPerMinute` | `30` | write tool calls allowed per minute |
+| `extensions.zotero-safe-mcp.writesPerMinute` | `60` | write tool calls allowed per minute |
 | `extensions.zotero-safe-mcp.pdfUrlBase` | empty | base of URLs from `get_pdf_url`; empty = `http://host.docker.internal:<Zotero's port>` |
 
 ## Tools
@@ -88,7 +88,7 @@ plugin, not the agent, enforces what the token allows:
   since yours would go to the trash with it.
 - **No files, no URLs, no code.** Papers come in by DOI, arXiv ID or PMID only; the PDF endpoint
   serves only files of attachment items in the library that really are PDFs (`%PDF-` header); nothing runs scripts or touches host files.
-- **Rate limited.** Write tools are capped per minute (default 30); a refused call changes nothing.
+- **Rate limited.** Write tools are capped per minute (default 60); a refused call changes nothing.
 - **Kept out of browsers.** The token keeps other local apps and web pages out; requests with a browser
   `Origin` header are rejected as well.
 

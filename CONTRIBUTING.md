@@ -86,7 +86,7 @@ export default defineTool<{ itemKey: string }>({
 - Throw `ToolError("message for the agent")` for expected failures. Anything else thrown (including
   Zotero's bare-string rejections) also becomes an `isError` result and is logged to Zotero's debug output.
 - `write: true` marks tools that change the library: read-only hint off, and `registry/tools.ts` `call`
-  applies the write rate limit (pref `writesPerMinute`, default 30, checked before the handler so a
+  applies the write rate limit (pref `writesPerMinute`, default 60, checked before the handler so a
   refused call has no side effects) and runs write tools one at a time. See "Adding a write tool".
 - Unit-test pure logic in `test/unit/<tool_name>.test.ts` (or the module's name, see above); test the tool end to end in
   `test/integration/<tool_name>.itest.ts`.

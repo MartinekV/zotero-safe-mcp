@@ -107,8 +107,8 @@ MCP client ──HTTP──► host.docker.internal:23119 ──► Zotero built
   them). Zotero's debug output, when the user turns it on, logs request
   headers including the token.
 - **Rate limit:** write tools (including `undo`) are capped per minute
-  (default 30, pref `extensions.zotero-safe-mcp.writesPerMinute`; an invalid
-  value falls back to 30, never to unlimited). Over the cap they fail
+  (default 60, pref `extensions.zotero-safe-mcp.writesPerMinute`; an invalid
+  value falls back to 60, never to unlimited). Over the cap they fail
   without side effects. Write tools run one at a time.
 - Items are referred to by **item key** (stable across sync), not numeric ID.
 
