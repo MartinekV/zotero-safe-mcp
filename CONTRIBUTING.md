@@ -140,7 +140,7 @@ The change log marks the change undone in the same transaction; a change is undo
 undo itself is not recorded as a change. `ctx.disownTag` forgets a pair (do this when undo removes a
 tag, so a user adding it again later owns it). For changes that only created objects,
 `trashCreatedObjects` (`src/undo/create_note.ts`) trashes everything in `change.objects`.
-Unit-test changes against a real SQLite with `test/unit/sqliteDb.ts` (see `change-log.test.ts`).
+Unit-test changes against a real SQLite with `test/unit/sqliteDb.ts` (see `changeLog.test.ts`).
 
 ## Adding an HTTP endpoint
 

@@ -1,6 +1,6 @@
 // Note HTML in a canonical form, for noticing the user's edits of agent notes (src/ownership/userEdits.ts)
 // and for undo of edit_note. Zotero 10's note editor doesn't save a note on open or close when its
-// images have width/height (checked headless, test/integration/user-edit-ownership.itest.ts), so the
+// images have width/height (checked headless, test/integration/userEdits.itest.ts), so the
 // HTML is compared, not the Markdown it reads as: formatting-only edits (underline, colours,
 // sub/superscript, image size) count. Ignored are only differences no reader sees: whitespace between
 // block elements, attribute order and how characters are escaped. Pure: no Zotero globals.
