@@ -1,11 +1,13 @@
 // A user's edit makes an agent note the user's (SPEC Hard rule 1, ticket 14). A note counts as edited
-// when its content differs from what the agent last wrote into it, compared as Markdown like undo of
-// edit_note does, so the note editor's reformatting on open doesn't count. Once noticed, the take-over
-// is recorded in the registry for good: the user reverting their edit doesn't hand the note back.
+// when its HTML differs from what the agent last wrote into it (compared in canonical form,
+// src/notes/canonicalNoteHtml.ts, like undo of edit_note: formatting-only edits count). Noticed when a
+// tool looks at the note and, while the plugin runs, as soon as the note is saved
+// (hooks/ownership-watch.ts). Once noticed, the take-over is recorded in the registry for good: the
+// user reverting their edit doesn't hand the note back.
 // Embedded images (child items) of such a note are the user's too. Tags the agent added to the note
 // stay the agent's (item + tag pairs are separate objects; remove_tags / undo of add_tags still work).
 import type { AgentNote, ChangeRecord } from "../changes/types";
-import { noteHtmlToMarkdown } from "../notes/noteHtmlToMarkdown";
+import { sameNoteHtml } from "../notes/canonicalNoteHtml";
 import { ToolError } from "../registry/types";
 
 export type NoteReader = {
@@ -48,7 +50,7 @@ export async function userTakenKeys(
 }
 
 function userEdited(current: string | null, agentHtml: string): boolean {
-  return current !== null && noteHtmlToMarkdown(current) !== noteHtmlToMarkdown(agentHtml);
+  return current !== null && !sameNoteHtml(current, agentHtml);
 }
 
 /** Throws unless none of `keys` was taken over by the user; `action` names what was refused. */

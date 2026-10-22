@@ -69,6 +69,11 @@ export type UndoContext = {
   disownTag(t: OwnedTag): Promise<void>;
   /** Own a pair (again) under the change being undone, effective with the undo's commit. */
   ownTag(t: OwnedTag): Promise<void>;
+  /**
+   * Keeps a note's HTML before the undo overwrites it, under the change being undone (after the
+   * version the change itself saved, which stays `noteVersions[0]`).
+   */
+  saveNoteVersion(v: NoteVersion): Promise<void>;
   /** Like ChangeWriter.noteWritten, for an undo that rewrites a note's content. */
   noteWritten(v: NoteVersion): Promise<void>;
   log(message: string): void;

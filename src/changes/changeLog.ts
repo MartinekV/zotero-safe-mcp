@@ -164,11 +164,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
         for (const g of tags) {
           await q(`INSERT OR REPLACE INTO ${SCHEMA}.owned_tags VALUES (?,?,?,?,?)`, [g.libraryID, g.itemKey, g.tag, changeId, t]);
         }
-        for (const v of versions) {
-          await q(`INSERT INTO ${SCHEMA}.note_versions (libraryID, noteKey, html, changeId, savedAt) VALUES (?,?,?,?,?)`, [
-            v.libraryID, v.noteKey, v.html, changeId, t,
-          ]);
-        }
+        for (const v of versions) await saveNoteVersion(v, changeId, t);
         for (const v of written) await noteWritten(v, changeId, t);
         return result;
       });
@@ -193,6 +189,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
           disownTag,
           ownTag,
           noteWritten: (v) => noteWritten(v, id, now()),
+          saveNoteVersion: (v) => saveNoteVersion(v, id, now()),
           log,
         });
         await q(`UPDATE ${SCHEMA}.changes SET undone = 1, undoneAt = ? WHERE changeId = ?`, [now(), id]);
@@ -297,6 +294,12 @@ export function createChangeLog(opts: ChangeLogOptions) {
     if (!change) throw new ToolError(`No change ${id} (see list_changes).`);
     if (change.undone) throw new ToolError(`Change ${id} (${change.summary}) is already undone.`);
     return change;
+  }
+
+  async function saveNoteVersion(v: NoteVersion, changeId: string, t: number): Promise<void> {
+    await q(`INSERT INTO ${SCHEMA}.note_versions (libraryID, noteKey, html, changeId, savedAt) VALUES (?,?,?,?,?)`, [
+      v.libraryID, v.noteKey, v.html, changeId, t,
+    ]);
   }
 
   async function noteWritten(v: NoteVersion, changeId: string, t: number): Promise<void> {

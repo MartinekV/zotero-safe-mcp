@@ -100,4 +100,38 @@ describe("a note the user edited in Zotero", () => {
     expect((await callTool("edit_note", { noteKey: key, markdown: "still mine" })).isError).toBeFalsy();
     expect((await callTool("trash", { itemKeys: [key] })).isError).toBeFalsy();
   });
+
+  it("a formatting-only edit (underline, text colour) makes it the user's; undo of the agent's edit keeps the user's HTML", async () => {
+    const { key } = await createNote("plain words here");
+    const edited = await callTool("edit_note", { noteKey: key, markdown: "agent words here" });
+    expect(edited.isError).toBeFalsy();
+    await userSets(key, "agent words", '<u>agent</u> <span style="color: #ff2020">words</span>');
+    const before = await noteState(key);
+    const u = await callTool("undo", { changeId: edited.structuredContent.changeId });
+    expect(u.isError).toBe(true);
+    expect(text(u)).toMatch(TAKEN);
+    expect(await noteState(key)).toEqual(before);
+    expect(await byLLM(key)).toBe(false);
+  });
+
+  it("opening and closing it in Zotero's note editor is not an edit", async () => {
+    const { key } = await createNote(
+      "# Heading\n\nSome **bold**, *italic*, `code`, [a link](https://example.org/?a=1&b=2) and $x^2$.\n\n" +
+        "$$\ny = mx + b\n$$\n\n- one\n- two\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n> quoted\n\n```\ncode block\n```",
+    );
+    const before = await noteState(key);
+    const after = await zeval(`
+      const note = Zotero.Items.getByLibraryAndKey(Zotero.Libraries.userLibraryID, ${JSON.stringify(key)});
+      const win = Zotero.getMainWindow();
+      const ei = await Zotero.Notes.open(note.id, null, {});
+      await ei._initPromise;
+      await Zotero.Promise.delay(1500);
+      for (const t of win.Zotero_Tabs._tabs.filter((t) => t.type == "note")) win.Zotero_Tabs.close(t.id);
+      await Zotero.Promise.delay(1000);
+      return note.getNote();
+    `);
+    expect(after).toBe(before.html); // the editor doesn't save on open/close
+    expect(await byLLM(key)).toBe(true);
+    expect((await callTool("edit_note", { noteKey: key, markdown: "still the agent's" })).isError).toBeFalsy();
+  });
 });

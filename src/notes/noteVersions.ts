@@ -5,7 +5,7 @@ import { SCHEMA } from "../changes/changeLog";
 import type { ChangeRecord, ChangeWriter, Db, UndoHandler } from "../changes/types";
 import { ToolError } from "../registry/types";
 import { embeddedImages, replaceImageKeys } from "./embeddedImages";
-import { noteHtmlToMarkdown } from "./noteHtmlToMarkdown";
+import { sameNoteHtml } from "./canonicalNoteHtml";
 
 export type NoteLike = {
   key: string;
@@ -71,8 +71,9 @@ export function editNoteUndoHandler(store: NoteStore): UndoHandler {
       const data = change.data as EditNoteData;
       const note = store.getNote(version.libraryID, version.noteKey);
       if (!note) return `Note ${version.noteKey} no longer exists; nothing restored`;
-      // Compared as Markdown: the note editor rewrites the HTML's formatting on open, not its content.
-      if (noteHtmlToMarkdown(note.getNote()) !== noteHtmlToMarkdown(data.html)) {
+      // Any change in Zotero since, formatting included, refuses the undo (it would discard it).
+      const current = note.getNote();
+      if (!sameNoteHtml(current, data.html)) {
         throw new ToolError(
           `Note ${version.noteKey} was changed in Zotero after ${change.changeId}; undoing the edit would discard ` +
             "those changes. Nothing was changed; use edit_note to change it instead.",
@@ -87,6 +88,8 @@ export function editNoteUndoHandler(store: NoteStore): UndoHandler {
         if (saved) renamed.set(key, await store.importImage(note, saved));
         else missing.push(key);
       }
+      // The HTML being replaced is kept with the change, so an undo never drops a version.
+      await ctx.saveNoteVersion({ libraryID: version.libraryID, noteKey: version.noteKey, html: current });
       note.setNote(replaceImageKeys(version.html, renamed));
       await note.save();
       await ctx.noteWritten({ libraryID: version.libraryID, noteKey: version.noteKey, html: note.getNote() });
