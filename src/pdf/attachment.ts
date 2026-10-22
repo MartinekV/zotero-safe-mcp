@@ -1,12 +1,9 @@
 // Looking up attachment items by key for the PDF tools and GET /safe-mcp/pdf/<key>.
 // Files are only ever resolved through the attachment item (getFilePathAsync), never from a client path.
 import { ToolError } from "../registry/types";
+import { libraryID } from "../zotero/library";
 import { isItemKey } from "./attachmentKey";
 import { hasPdfHeader, PDF_HEADER_WINDOW } from "./pdfHeader";
-
-function libraryID(): number {
-  return Zotero.Libraries.userLibraryID;
-}
 
 /** A file attachment (PDF, EPUB, snapshot …) in the user's library, or ToolError. */
 export async function getFileAttachment(key: string): Promise<Zotero.Item> {

@@ -2,9 +2,8 @@
 // Highlights erased meanwhile (the user emptied the trash) are recreated from the copy kept with the change.
 import { describeOutcome, setDeleted } from "../changes/trash";
 import type { UndoHandler } from "../changes/types";
-import { recreateAnnotation, type AnnotationSnapshot } from "../highlight/annotationItem";
-
-export type TrashData = { libraryID: number; trashed: string[]; annotations?: AnnotationSnapshot[] };
+import { recreateAnnotation } from "../highlight/annotationItem";
+import type { TrashData } from "../changes/data";
 
 const handler: UndoHandler = {
   kind: "trash",

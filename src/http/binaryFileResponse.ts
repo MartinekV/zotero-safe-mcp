@@ -3,6 +3,7 @@
 // Zotero.Server.RequestHandler.prototype._requestFinished: when an endpoint under `pathPrefix` returns
 // options { [FILE_PATH_OPTION]: path } (4th tuple element) with an empty body, we write the head
 // ourselves and stream the file's raw bytes. Every other response goes to Zotero's original.
+import { env } from "../env";
 
 /** Response option naming the file to stream (set only by our own endpoint handlers). */
 export const FILE_PATH_OPTION = "safeMcpFilePath";
@@ -48,7 +49,7 @@ export const zoteroSendFile: SendFile = (response, head, filePath) => {
     const { NetUtil } = ChromeUtils.importESModule("resource://gre/modules/NetUtil.sys.mjs") as any;
     NetUtil.asyncCopy(fis, out, () => response.finish(), /* closeSink */ false);
   } catch (e) {
-    Zotero.debug(`[safe-mcp] streaming ${filePath} failed: ${e}`);
+    env.log(`streaming ${filePath} failed: ${e}`);
     response.finish();
   }
 };

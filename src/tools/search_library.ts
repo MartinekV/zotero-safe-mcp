@@ -1,5 +1,6 @@
+import { KEY_PATTERN } from "../config";
 import { defineTool, ToolError } from "../registry/types";
-import { asItemLike, KEY_PATTERN, libraryID, requireCollection, zoteroLibrary } from "../zotero/library";
+import { asItemLike, libraryID, requireCollection, zoteroLibrary } from "../zotero/library";
 import { summarizeItem } from "../zotero/serialize";
 
 export const DEFAULT_LIMIT = 25;

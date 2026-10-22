@@ -1,5 +1,5 @@
 import { changeLog } from "../changes";
-import { LLM_TAG } from "../config";
+import { LLM_TAG, KEY_PATTERN } from "../config";
 import { embeddedImages } from "../notes/embeddedImages";
 import { markdownToNoteHtml, type NoteLookups } from "../notes/markdownToNoteHtml";
 import { editNote, type NoteLike } from "../notes/noteVersions";
@@ -7,7 +7,7 @@ import { noteLookups, withImages } from "../notes/zoteroLookups";
 import { embeddedImageAttachment, zoteroNoteStore } from "../notes/zoteroNotes";
 import { requireAgentOwned } from "../ownership/agentOwned";
 import { defineTool, ToolError } from "../registry/types";
-import { KEY_PATTERN, libraryID, requireItem } from "../zotero/library";
+import { libraryID, requireItem } from "../zotero/library";
 
 type Args = { noteKey: string; markdown: string };
 

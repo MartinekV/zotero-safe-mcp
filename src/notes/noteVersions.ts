@@ -54,7 +54,6 @@ export async function editNote(w: ChangeWriter, libraryID: number, note: NoteLik
   w.noteWritten({ libraryID, noteKey: note.key, html: note.getNote() });
   const data: EditNoteData = { libraryID, noteKey: note.key, html, droppedImages };
   w.data = data;
-  w.summary = `Edited note ${note.key}`;
 }
 
 export function editNoteUndoHandler(store: NoteStore): UndoHandler {

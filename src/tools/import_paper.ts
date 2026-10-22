@@ -1,9 +1,10 @@
+import { KEY_PATTERN } from "../config";
 import { parseIdentifier } from "../import/identifier";
 import { runImport } from "../import/runImport";
 import { zoteroImportPorts } from "../import/zoteroPorts";
 import { findExistingPaper } from "../import/zoteroDuplicates";
 import { defineTool, ToolError } from "../registry/types";
-import { KEY_PATTERN, libraryID, requireCollection } from "../zotero/library";
+import { libraryID, requireCollection, requireItem } from "../zotero/library";
 
 type Args = { identifier: string; collectionKey?: string };
 
@@ -38,7 +39,7 @@ export default defineTool<Args>({
     const collectionID = args.collectionKey !== undefined ? requireCollection(args.collectionKey).id : undefined;
     const existing = await findExistingPaper(libraryID(), parsed.identifier);
     if (existing) {
-      const item = Zotero.Items.getByLibraryAndKey(libraryID(), existing.itemKey) as Zotero.Item;
+      const item = requireItem(existing.itemKey);
       return {
         duplicate: true,
         itemKey: existing.itemKey,

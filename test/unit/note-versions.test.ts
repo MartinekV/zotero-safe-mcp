@@ -77,7 +77,6 @@ describe("edit and undo", () => {
     expect(notes.get("NOTEAAAA")!.saves).toBe(1);
     const change = await log.get(changeId);
     expect(change!.noteVersions).toEqual([{ libraryID: L, noteKey: "NOTEAAAA", html: wrap("<p>v1</p>") }]);
-    expect(change!.summary).toBe("Edited note NOTEAAAA");
   });
 
   it("undo of the edit restores the previous version", async () => {

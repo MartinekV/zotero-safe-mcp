@@ -18,6 +18,7 @@
 // so a slow publisher never holds the serialised write queue for more than lookup + attachment
 // budget.
 import { ToolError } from "../registry/types";
+import { errorMessage as describe } from "../util/errors";
 import type { Identifier } from "./identifier";
 
 export type SavedObject = {
@@ -74,7 +75,6 @@ function within<T>(p: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
-const describe = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const label = (id: Identifier) => `${id.type} ${id.value}`;
 
 export async function runImport(id: Identifier, ports: ImportPorts, opts: ImportOptions): Promise<ImportResult> {

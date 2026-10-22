@@ -6,6 +6,7 @@
 // user reverting their edit doesn't hand the note back.
 // Embedded images (child items) of such a note are the user's too. Tags the agent added to the note
 // stay the agent's (item + tag pairs are separate objects; remove_tags / undo of add_tags still work).
+import { trashedKeys } from "../changes/data";
 import type { AgentNote, ChangeRecord } from "../changes/types";
 import { sameNoteHtml } from "../notes/canonicalNoteHtml";
 import { ToolError } from "../registry/types";
@@ -69,7 +70,5 @@ export function requireNotUserTaken(keys: readonly string[], taken: ReadonlySet<
  * the items it trashed. Tag pairs are not included (they stay the agent's).
  */
 export function keysUndoWouldChange(change: ChangeRecord): string[] {
-  const data = change.data as { trashed?: unknown } | null;
-  const trashed = Array.isArray(data?.trashed) ? (data!.trashed as string[]) : [];
-  return [...new Set([...change.objects.map((o) => o.itemKey), ...change.noteVersions.map((v) => v.noteKey), ...trashed])];
+  return [...new Set([...change.objects.map((o) => o.itemKey), ...change.noteVersions.map((v) => v.noteKey), ...trashedKeys(change)])];
 }

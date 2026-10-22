@@ -1,5 +1,6 @@
 // Ownership checks (SPEC Hard rule 1): pure functions every write tool uses before touching the
 // library. The owned sets come from the ownership registry (src/changes), never from the [LLM] tag.
+import { quoteTags } from "../tags/quoteTags";
 import { ToolError } from "../registry/types";
 
 /**
@@ -37,7 +38,7 @@ export function requireOwnedTagPairs(itemKey: string, tags: readonly string[], o
   const foreign = [...new Set(tags.filter((t) => !ownedTags.has(t)))];
   if (foreign.length) {
     throw new ToolError(
-      `Refusing to remove tags from ${itemKey}: ${foreign.map((t) => JSON.stringify(t)).join(", ")} ` +
+      `Refusing to remove tags from ${itemKey}: ${quoteTags(foreign)} ` +
         `${foreign.length === 1 ? "was" : "were"} not added by this plugin. Nothing was changed.`,
     );
   }

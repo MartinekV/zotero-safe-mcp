@@ -1,5 +1,6 @@
 // The tool registry: listing, argument validation, dispatch, and the ONE place where tool
 // failures become MCP `isError` results.
+import { errorDetail, errorMessage } from "../util/errors";
 import type { McpToolCallResult, McpToolDefinition } from "../mcp/protocol";
 import type { RateLimiter } from "../ownership/rateLimit";
 import { validate } from "./schema";
@@ -57,13 +58,9 @@ async function run(tool: ToolDef, args: Record<string, unknown>, ctx: ToolContex
     return toResult(await tool.handler(args, ctx));
   } catch (e) {
     if (e instanceof ToolError) return errorResult(e.message);
-    ctx.log(`tool ${tool.name} failed: ${describe(e)}${e instanceof Error && e.stack ? `\n${e.stack}` : ""}`);
-    return errorResult(`Internal error in ${tool.name}: ${describe(e)}`);
+    ctx.log(`tool ${tool.name} failed: ${errorDetail(e)}`);
+    return errorResult(`Internal error in ${tool.name}: ${errorMessage(e)}`);
   }
-}
-
-function describe(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }
 
 function errorResult(text: string): McpToolCallResult {

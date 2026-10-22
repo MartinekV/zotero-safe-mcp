@@ -1,9 +1,8 @@
 // Attachment keys and the download URL the agent gets from get_pdf_url.
-import { PDF_PATH_PREFIX } from "../config";
+import { KEY_PATTERN, PDF_PATH_PREFIX } from "../config";
 
 /** Zotero item keys: exactly 8 of [A-Z0-9]. Anything else never reaches a Zotero lookup. */
-export const ITEM_KEY_PATTERN = "^[A-Z0-9]{8}$";
-const ITEM_KEY_RE = /^[A-Z0-9]{8}$/;
+const ITEM_KEY_RE = new RegExp(KEY_PATTERN);
 
 export function isItemKey(value: unknown): value is string {
   return typeof value === "string" && ITEM_KEY_RE.test(value);

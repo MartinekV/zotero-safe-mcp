@@ -5,15 +5,12 @@
 import { IMAGE_PATH } from "../config";
 import { imageUploads } from "../images";
 import type { ImageUploads, UploadRefusal } from "../images/uploads";
+import { jsonResponse } from "../http/json";
 import { EndpointDef, HttpHandler, HttpResponse } from "../registry/types";
 
 export type ReadBody = (stream: unknown, maxBytes: number) => Uint8Array;
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "application/octet-stream"];
-
-function jsonResponse(status: number, body: unknown, headers: Record<string, string | number> = {}): HttpResponse {
-  return { status, headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) };
-}
 
 const STATUS: Record<UploadRefusal["reason"], number> = { "too-large": 413, "not-an-image": 415, full: 429 };
 

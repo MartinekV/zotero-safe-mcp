@@ -1,9 +1,10 @@
-import { LLM_TAG } from "../config";
+import { requireExactlyOne } from "../registry/args";
+import { LLM_TAG, KEY_PATTERN } from "../config";
 import { changeLog } from "../changes";
 import { markdownToNoteHtml } from "../notes/markdownToNoteHtml";
 import { noteLookups, withImages } from "../notes/zoteroLookups";
 import { defineTool, ToolError } from "../registry/types";
-import { KEY_PATTERN, libraryID, requireCollection, requireItem } from "../zotero/library";
+import { libraryID, requireCollection, requireItem } from "../zotero/library";
 
 type Args = { markdown: string; parentItemKey?: string; collectionKey?: string };
 
@@ -28,9 +29,7 @@ export default defineTool<Args>({
   },
   async handler(args) {
     const { markdown, parentItemKey, collectionKey } = args;
-    if ((parentItemKey === undefined) === (collectionKey === undefined)) {
-      throw new ToolError("Give exactly one of parentItemKey (child note) or collectionKey (standalone note).");
-    }
+    requireExactlyOne(parentItemKey, collectionKey, "Give exactly one of parentItemKey (child note) or collectionKey (standalone note).");
     const L = libraryID();
     let where: string;
     if (parentItemKey !== undefined) {

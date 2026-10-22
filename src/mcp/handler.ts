@@ -1,9 +1,12 @@
 // POST /safe-mcp: MCP over Streamable HTTP, JSON responses only, stateless.
 // Batches are rejected (removed from MCP in 2025-06-18). Tool failures are results with
 // isError (see registry/tools.ts); only malformed calls get JSON-RPC errors.
+import { PLUGIN_NAME } from "../config";
 import type { RateLimiter } from "../ownership/rateLimit";
 import { createToolRegistry, UnknownToolError } from "../registry/tools";
 import { HttpHandler, HttpResponse, ToolDef } from "../registry/types";
+import { errorDetail } from "../util/errors";
+import { isPlainObject } from "../util/isPlainObject";
 import { JsonRpcId, JsonRpcResponse, makeError, makeResult, RPC_ERRORS, SUPPORTED_PROTOCOL_VERSIONS } from "./protocol";
 
 export type McpHandlerOptions = {
@@ -24,9 +27,6 @@ function invalidRequest(detail?: string): HttpResponse {
   return json(400, makeError(null, RPC_ERRORS.INVALID_REQUEST, detail ? `Invalid Request: ${detail}` : "Invalid Request"));
 }
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 function isValidId(v: unknown): boolean {
   return v === null || typeof v === "string" || (typeof v === "number" && Number.isFinite(v));
@@ -45,7 +45,7 @@ export function createMcpHandler(opts: McpHandlerOptions): HttpHandler {
             ? requested
             : SUPPORTED_PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "zotero-safe-mcp", version: opts.version },
+        serverInfo: { name: PLUGIN_NAME, version: opts.version },
       };
     },
     ping: () => ({}),
@@ -82,7 +82,7 @@ export function createMcpHandler(opts: McpHandlerOptions): HttpHandler {
       if (e instanceof InvalidParams || e instanceof UnknownToolError) {
         return json(200, makeError(id, RPC_ERRORS.INVALID_PARAMS, e.message));
       }
-      opts.log(`MCP ${msg.method} failed: ${e instanceof Error ? e.stack || e.message : String(e)}`);
+      opts.log(`MCP ${msg.method} failed: ${errorDetail(e)}`);
       return json(200, makeError(id, RPC_ERRORS.INTERNAL_ERROR, "Internal error"));
     }
   };

@@ -13,6 +13,12 @@ export function zoteroPalette(): Palette {
   return ((Zotero.Annotations as any).COLORS ?? []) as Palette;
 }
 
+/** The name of a palette color ("yellow", also "green"), or null for colors outside the palette. */
+export function colorNameOf(hex: string | null, palette: Palette): string | null {
+  const entry = palette.find(([, h]) => h === hex);
+  return entry ? entry[0].replace(/^general-/, "") : null;
+}
+
 /** The hex for a color name (default yellow), or ToolError for green, hex codes and unknown names. */
 export function resolveHighlightColor(color: string | undefined, palette: Palette): string {
   const allowed = HIGHLIGHT_COLOR_NAMES.join(", ");

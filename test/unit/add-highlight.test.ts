@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { llmComment } from "../../src/tools/add_highlight";
+import { llmComment } from "../../src/highlight/comment";
 
 describe("add_highlight comment (SPEC Hard rule 3)", () => {
   it("prefixes [LLM], without doubling it", () => {

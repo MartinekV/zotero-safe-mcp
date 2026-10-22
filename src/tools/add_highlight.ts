@@ -1,26 +1,18 @@
 // Adapted from llm-for-zotero (AGPL-3.0), src/agent/tools/write/annotatePdf.ts@435dd19 (building and
 // saving the highlight); positioning in ../highlight/locate.ts.
-import { LLM_TAG } from "../config";
+import { LLM_TAG, KEY_PATTERN } from "../config";
 import { changeLog } from "../changes";
-import { annotationSnapshot, saveHighlight, type AnnotationSnapshot } from "../highlight/annotationItem";
-import { HIGHLIGHT_COLOR_NAMES, resolveHighlightColor, zoteroPalette } from "../highlight/color";
+import type { AddHighlightData } from "../changes/data";
+import { annotationSnapshot, saveHighlight } from "../highlight/annotationItem";
+import { llmComment } from "../highlight/comment";
+import { colorNameOf, HIGHLIGHT_COLOR_NAMES, resolveHighlightColor, zoteroPalette } from "../highlight/color";
 import { locateHighlight } from "../highlight/locate";
 import { withPdf } from "../highlight/pdfjs";
 import { getPdfAttachment } from "../pdf/attachment";
-import { ITEM_KEY_PATTERN } from "../pdf/attachmentKey";
+
 import { defineTool, ToolError } from "../registry/types";
 
 type Args = { attachmentKey: string; text: string; page?: number; occurrence?: number; color?: string; comment?: string };
-
-/** Data kept with the change: a copy of the highlight as created. */
-export type AddHighlightData = { annotation: AnnotationSnapshot };
-
-/** SPEC Hard rule 3: the comment starts with [LLM]. */
-export function llmComment(comment: string | undefined): string {
-  const c = (comment ?? "").trim();
-  if (!c) return LLM_TAG;
-  return c.startsWith(LLM_TAG) ? c : `${LLM_TAG} ${c}`;
-}
 
 export default defineTool<Args>({
   name: "add_highlight",
@@ -37,7 +29,7 @@ export default defineTool<Args>({
     additionalProperties: false,
     required: ["attachmentKey", "text"],
     properties: {
-      attachmentKey: { type: "string", pattern: ITEM_KEY_PATTERN, description: "Key of the PDF attachment item" },
+      attachmentKey: { type: "string", pattern: KEY_PATTERN, description: "Key of the PDF attachment item" },
       text: { type: "string", minLength: 1, maxLength: 10_000, description: "The passage, quoted from the PDF" },
       page: { type: "integer", minimum: 1, description: "1-based PDF page the passage starts on" },
       occurrence: { type: "integer", minimum: 1, description: "1-based match to take when the passage occurs more than once" },
@@ -46,7 +38,8 @@ export default defineTool<Args>({
     },
   },
   async handler(args) {
-    const color = resolveHighlightColor(args.color, zoteroPalette());
+    const palette = zoteroPalette();
+    const color = resolveHighlightColor(args.color, palette);
     const comment = llmComment(args.comment);
     const attachment = await getPdfAttachment(args.attachmentKey);
     if (attachment.deleted) throw new ToolError(`Attachment ${args.attachmentKey} is in the trash.`);
@@ -79,7 +72,7 @@ export default defineTool<Args>({
       page,
       pageLabel,
       ...(located.position.nextPageRects ? { continuesOnPage: page + 1 } : {}),
-      color: (args.color ?? "yellow").trim().toLowerCase(),
+      color: colorNameOf(color, palette),
       comment,
       highlightedText: located.text,
     };

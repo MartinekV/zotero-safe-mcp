@@ -161,9 +161,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
           await q(`INSERT INTO ${SCHEMA}.owned_objects VALUES (?,?,?,?,?)`, [o.libraryID, o.itemKey, o.kind, changeId, t]);
         }
         for (const d of disowned) await disownTag(d);
-        for (const g of tags) {
-          await q(`INSERT OR REPLACE INTO ${SCHEMA}.owned_tags VALUES (?,?,?,?,?)`, [g.libraryID, g.itemKey, g.tag, changeId, t]);
-        }
+        for (const g of tags) await ownTag(g, changeId, t);
         for (const v of versions) await saveNoteVersion(v, changeId, t);
         for (const v of written) await noteWritten(v, changeId, t);
         return result;
@@ -181,13 +179,10 @@ export function createChangeLog(opts: ChangeLogOptions) {
         const id = change.changeId;
         const handler = handlers.get(change.kind);
         if (!handler) throw new ToolError(`Change ${id} (${change.tool}) cannot be undone.`);
-        const ownTag = async (g: OwnedTag) => {
-          await q(`INSERT OR REPLACE INTO ${SCHEMA}.owned_tags VALUES (?,?,?,?,?)`, [g.libraryID, g.itemKey, g.tag, id, now()]);
-        };
         const summary = await handler.undo(change, {
           db,
           disownTag,
-          ownTag,
+          ownTag: (g) => ownTag(g, id, now()),
           noteWritten: (v) => noteWritten(v, id, now()),
           saveNoteVersion: (v) => saveNoteVersion(v, id, now()),
           log,
@@ -239,16 +234,8 @@ export function createChangeLog(opts: ChangeLogOptions) {
 
     /** The subset of `keys` the plugin created. */
     async ownedKeys(libraryID: number, keys: readonly string[]): Promise<Set<string>> {
-      const out = new Set<string>();
-      for (let i = 0; i < keys.length; i += 500) {
-        const chunk = keys.slice(i, i + 500);
-        const rows = await q(
-          `SELECT itemKey FROM ${SCHEMA}.owned_objects WHERE libraryID = ? AND itemKey IN (${chunk.map(() => "?").join(",")})`,
-          [libraryID, ...chunk],
-        );
-        for (const r of rows) out.add(r.itemKey);
-      }
-      return out;
+      const rows = await selectByKeys(`SELECT itemKey FROM ${SCHEMA}.owned_objects WHERE libraryID = ? AND itemKey`, libraryID, keys);
+      return new Set(rows.map((r) => r.itemKey as string));
     },
 
     /**
@@ -256,16 +243,8 @@ export function createChangeLog(opts: ChangeLogOptions) {
      * schema 2 have none), and whether the user has taken the note over (src/ownership/userEdits.ts).
      */
     async agentNotes(libraryID: number, keys: readonly string[]): Promise<Map<string, AgentNote>> {
-      const out = new Map<string, AgentNote>();
-      for (let i = 0; i < keys.length; i += 500) {
-        const chunk = keys.slice(i, i + 500);
-        const rows = await q(
-          `SELECT noteKey, html, userEditedAt FROM ${SCHEMA}.agent_notes WHERE libraryID = ? AND noteKey IN (${chunk.map(() => "?").join(",")})`,
-          [libraryID, ...chunk],
-        );
-        for (const r of rows) out.set(r.noteKey, { html: r.html, userEdited: r.userEditedAt != null });
-      }
-      return out;
+      const rows = await selectByKeys(`SELECT noteKey, html, userEditedAt FROM ${SCHEMA}.agent_notes WHERE libraryID = ? AND noteKey`, libraryID, keys);
+      return new Map(rows.map((r): [string, AgentNote] => [r.noteKey, { html: r.html, userEdited: r.userEditedAt != null }]));
     },
 
     /** Records, for good, that the user edited these notes in Zotero: they are the user's now. */
@@ -322,6 +301,20 @@ export function createChangeLog(opts: ChangeLogOptions) {
        ON CONFLICT (libraryID, noteKey) DO UPDATE SET html = excluded.html, changeId = excluded.changeId, writtenAt = excluded.writtenAt`,
       [v.libraryID, v.noteKey, v.html, changeId, t],
     );
+  }
+
+  /** Rows of `sqlPrefix IN (keys)`, queried in chunks (SQLite limits the number of parameters). */
+  async function selectByKeys(sqlPrefix: string, libraryID: number, keys: readonly string[]): Promise<any[]> {
+    const out: any[] = [];
+    for (let i = 0; i < keys.length; i += 500) {
+      const chunk = keys.slice(i, i + 500);
+      out.push(...(await q(`${sqlPrefix} IN (${chunk.map(() => "?").join(",")})`, [libraryID, ...chunk])));
+    }
+    return out;
+  }
+
+  async function ownTag(g: OwnedTag, changeId: string, t: number): Promise<void> {
+    await q(`INSERT OR REPLACE INTO ${SCHEMA}.owned_tags VALUES (?,?,?,?,?)`, [g.libraryID, g.itemKey, g.tag, changeId, t]);
   }
 
   async function disownTag(t: OwnedTag): Promise<void> {
