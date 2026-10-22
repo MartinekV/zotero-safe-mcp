@@ -1,4 +1,4 @@
-import { changeLog } from "../changes";
+import { agentOwnedKeys } from "../ownership/agentOwned";
 import { noteHtmlToMarkdown } from "../notes/noteHtmlToMarkdown";
 import { defineTool, ToolError } from "../registry/types";
 import { KEY_PATTERN, libraryID, requireCollection, requireItem } from "../zotero/library";
@@ -10,7 +10,7 @@ export default defineTool<Args>({
   description:
     "Notes with their content as Markdown: the child notes of an item (itemKey; a note's own key returns that note), " +
     "or the standalone notes in a collection (collectionKey). Give exactly one. byLLM is true only for notes this " +
-    "plugin created (from its registry, not from the [LLM] tag). Trashed notes are left out.",
+    "plugin created (from its registry, not from the [LLM] tag) and the user hasn't edited in Zotero since. Trashed notes are left out.",
   write: false,
   inputSchema: {
     type: "object",
@@ -34,7 +34,7 @@ export default defineTool<Args>({
       );
     }
     notes = notes.filter((n) => n && !n.deleted);
-    const owned = await changeLog().ownedKeys(libraryID(), notes.map((n) => n.key));
+    const owned = await agentOwnedKeys(libraryID(), notes.map((n) => n.key));
     return {
       notes: notes.map((n) => ({
         key: n.key,

@@ -3,6 +3,7 @@
 // Zotero save and its ownership/change rows commit or roll back together.
 import { ToolError } from "../registry/types";
 import type {
+  AgentNote,
   ChangeRecord,
   ChangeSummary,
   ChangeWriter,
@@ -14,7 +15,7 @@ import type {
 } from "./types";
 
 export const SCHEMA = "safemcp";
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const DDL = [
   `CREATE TABLE IF NOT EXISTS ${SCHEMA}.changes (
@@ -49,6 +50,16 @@ const DDL = [
      html TEXT NOT NULL,
      changeId TEXT NOT NULL,
      savedAt INTEGER NOT NULL)`,
+  // What the agent last wrote into each note (to notice the user's edits, ticket 14), and when the
+  // user took the note over by editing it (permanent: a later revert doesn't hand it back).
+  `CREATE TABLE IF NOT EXISTS ${SCHEMA}.agent_notes (
+     libraryID INTEGER NOT NULL,
+     noteKey TEXT NOT NULL,
+     html TEXT NOT NULL,
+     changeId TEXT NOT NULL,
+     writtenAt INTEGER NOT NULL,
+     userEditedAt INTEGER,
+     PRIMARY KEY (libraryID, noteKey))`,
   `CREATE INDEX IF NOT EXISTS ${SCHEMA}.owned_objects_change ON owned_objects (changeId)`,
   `CREATE INDEX IF NOT EXISTS ${SCHEMA}.note_versions_note ON note_versions (libraryID, noteKey)`,
 ];
@@ -128,6 +139,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
       const tags: OwnedTag[] = [];
       const disowned: OwnedTag[] = [];
       const versions: NoteVersion[] = [];
+      const written: NoteVersion[] = [];
       const w: ChangeWriter = {
         changeId,
         summary: spec.tool,
@@ -136,6 +148,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
         ownTag: (t) => void tags.push({ ...t }),
         disownTag: (t) => void disowned.push({ ...t }),
         saveNoteVersion: (v) => void versions.push({ ...v }),
+        noteWritten: (v) => void written.push({ ...v }),
       };
       const result = await db.executeTransaction(async () => {
         const result = await body(w);
@@ -156,6 +169,7 @@ export function createChangeLog(opts: ChangeLogOptions) {
             v.libraryID, v.noteKey, v.html, changeId, t,
           ]);
         }
+        for (const v of written) await noteWritten(v, changeId, t);
         return result;
       });
       return { changeId, result };
@@ -167,27 +181,32 @@ export function createChangeLog(opts: ChangeLogOptions) {
      */
     async undo(changeId?: string): Promise<{ changeId: string; tool: string; summary: string }> {
       return db.executeTransaction(async () => {
-        let id = changeId;
-        if (id === undefined) {
-          const [row] = await q(`SELECT changeId FROM ${SCHEMA}.changes WHERE undone = 0 ORDER BY seq DESC LIMIT 1`);
-          if (!row) throw new ToolError("Nothing to undo: every change is already undone.");
-          id = row.changeId as string;
-        }
-        const change = await get(id);
-        if (!change) throw new ToolError(`No change ${id} (see list_changes).`);
-        if (change.undone) throw new ToolError(`Change ${id} (${change.summary}) is already undone.`);
+        const change = await undoTarget(changeId);
+        const id = change.changeId;
         const handler = handlers.get(change.kind);
         if (!handler) throw new ToolError(`Change ${id} (${change.tool}) cannot be undone.`);
         const ownTag = async (g: OwnedTag) => {
           await q(`INSERT OR REPLACE INTO ${SCHEMA}.owned_tags VALUES (?,?,?,?,?)`, [g.libraryID, g.itemKey, g.tag, id, now()]);
         };
-        const summary = await handler.undo(change, { db, disownTag, ownTag, log });
+        const summary = await handler.undo(change, {
+          db,
+          disownTag,
+          ownTag,
+          noteWritten: (v) => noteWritten(v, id, now()),
+          log,
+        });
         await q(`UPDATE ${SCHEMA}.changes SET undone = 1, undoneAt = ? WHERE changeId = ?`, [now(), id]);
         return { changeId: id, tool: change.tool, summary };
       });
     },
 
     get,
+
+    /**
+     * The change `undo(changeId)` would reverse (default: the newest not undone); throws the same
+     * ToolErrors undo does when there is none. For checks that must run before undo's transaction.
+     */
+    undoTarget,
 
     /**
      * Records objects created after `changeId` was recorded (e.g. import_paper's attachments that
@@ -233,12 +252,58 @@ export function createChangeLog(opts: ChangeLogOptions) {
       return out;
     },
 
+    /**
+     * The agent's last write of each of these notes that has one recorded (notes written before
+     * schema 2 have none), and whether the user has taken the note over (src/ownership/userEdits.ts).
+     */
+    async agentNotes(libraryID: number, keys: readonly string[]): Promise<Map<string, AgentNote>> {
+      const out = new Map<string, AgentNote>();
+      for (let i = 0; i < keys.length; i += 500) {
+        const chunk = keys.slice(i, i + 500);
+        const rows = await q(
+          `SELECT noteKey, html, userEditedAt FROM ${SCHEMA}.agent_notes WHERE libraryID = ? AND noteKey IN (${chunk.map(() => "?").join(",")})`,
+          [libraryID, ...chunk],
+        );
+        for (const r of rows) out.set(r.noteKey, { html: r.html, userEdited: r.userEditedAt != null });
+      }
+      return out;
+    },
+
+    /** Records, for good, that the user edited these notes in Zotero: they are the user's now. */
+    async markUserEdited(libraryID: number, keys: readonly string[]): Promise<void> {
+      const t = now();
+      for (const key of keys) {
+        await q(`UPDATE ${SCHEMA}.agent_notes SET userEditedAt = ? WHERE libraryID = ? AND noteKey = ? AND userEditedAt IS NULL`, [t, libraryID, key]);
+      }
+    },
+
     /** Tags on this item that the plugin added. */
     async ownedTags(libraryID: number, itemKey: string): Promise<Set<string>> {
       const rows = await q(`SELECT tag FROM ${SCHEMA}.owned_tags WHERE libraryID = ? AND itemKey = ?`, [libraryID, itemKey]);
       return new Set(rows.map((r) => r.tag as string));
     },
   };
+
+  async function undoTarget(changeId?: string): Promise<ChangeRecord> {
+    let id = changeId;
+    if (id === undefined) {
+      const [row] = await q(`SELECT changeId FROM ${SCHEMA}.changes WHERE undone = 0 ORDER BY seq DESC LIMIT 1`);
+      if (!row) throw new ToolError("Nothing to undo: every change is already undone.");
+      id = row.changeId as string;
+    }
+    const change = await get(id);
+    if (!change) throw new ToolError(`No change ${id} (see list_changes).`);
+    if (change.undone) throw new ToolError(`Change ${id} (${change.summary}) is already undone.`);
+    return change;
+  }
+
+  async function noteWritten(v: NoteVersion, changeId: string, t: number): Promise<void> {
+    await q(
+      `INSERT INTO ${SCHEMA}.agent_notes (libraryID, noteKey, html, changeId, writtenAt) VALUES (?,?,?,?,?)
+       ON CONFLICT (libraryID, noteKey) DO UPDATE SET html = excluded.html, changeId = excluded.changeId, writtenAt = excluded.writtenAt`,
+      [v.libraryID, v.noteKey, v.html, changeId, t],
+    );
+  }
 
   async function disownTag(t: OwnedTag): Promise<void> {
     await q(`DELETE FROM ${SCHEMA}.owned_tags WHERE libraryID = ? AND itemKey = ? AND tag = ?`, [t.libraryID, t.itemKey, t.tag]);

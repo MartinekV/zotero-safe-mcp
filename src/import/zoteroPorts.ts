@@ -69,7 +69,12 @@ export function zoteroImportPorts(opts: {
 
     async record(objects, summary) {
       const { changeId } = await changeLog().recordWrite({ tool: "import_paper", args: opts.args }, async (w) => {
-        for (const o of objects) w.ownObject({ libraryID: L, itemKey: o.key, kind: o.kind });
+        for (const o of objects) {
+          w.ownObject({ libraryID: L, itemKey: o.key, kind: o.kind });
+          // Notes the translator added: the user editing one makes it theirs, as for create_note.
+          const item = o.kind === "note" ? Zotero.Items.getByLibraryAndKey(L, o.key) : null;
+          if (item && item.isNote()) w.noteWritten({ libraryID: L, noteKey: o.key, html: item.getNote() });
+        }
         w.data = { identifier: opts.identifier };
         w.summary = summary;
       });

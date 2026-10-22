@@ -30,7 +30,15 @@ These are enforced by the plugin, not left to the agent.
 1. **Ownership.** The plugin records every object it creates (notes,
    highlights, imported papers and their attachments) and every tag it adds
    (item + tag pair). Only recorded objects/pairs can be edited, removed or
-   undone. Everything else is read-only.
+   undone. Everything else is read-only. Once the user edits one of the
+   agent's notes in Zotero, the note is the user's: `edit_note`, `trash` and
+   `undo` of its creation or any of its edits are refused ("you edited this
+   note in Zotero; it is now yours"), `byLLM` is false, and the same holds for
+   its embedded images. An edit is a difference between the note's content
+   and what the agent last wrote, compared as Markdown (the note editor's
+   reformatting doesn't count). The take-over is recorded and permanent: the
+   user reverting the edit doesn't hand the note back. Tags the agent added
+   to the note stay agent-owned pairs (separate objects).
 2. **No green highlights.** Green is reserved for the user. `color` accepts
    only Zotero's named colors except green: yellow (default), red, blue,
    purple, magenta, orange, gray. Hex codes are rejected.
@@ -113,7 +121,7 @@ MCP client ──HTTP──► host.docker.internal:23119 ──► Zotero built
 |---|---|---|
 | `add_highlight` | `attachmentKey`, `text`, optional `page`, `occurrence`, `color`, `comment` | locates exact text in the PDF (may cross a page break); `page` = 1-based PDF page the passage starts on, `occurrence` counts on that page or in the whole PDF; color rule; comment prefixed `[LLM]`; recorded as owned |
 | `create_note` | `markdown`, `parentItemKey` or `collectionKey` (standalone) | Markdown → Zotero note HTML; tag `[LLM]`; recorded as owned |
-| `edit_note` | `noteKey`, `markdown` | owned, non-trashed notes only; previous version saved for undo; `[LLM]` tag kept |
+| `edit_note` | `noteKey`, `markdown` | owned, non-trashed notes the user hasn't edited only; previous version saved for undo; `[LLM]` tag kept |
 | `add_tags` | `itemKey`, `tags[]` | any non-trashed item; `[LLM]` refused; each newly added pair recorded as owned (pairs that already existed are not); refused if every tag is already there |
 | `remove_tags` | `itemKey`, `tags[]` | owned pairs only; all or nothing, the error lists the refused tags |
 | `import_paper` | `identifier`, optional `collectionKey` | DOI / arXiv / PMID via Zotero's own translators; fetches PDF when Zotero can; new item + attachments recorded as owned; if an item with the same DOI / arXiv ID / PMID is already in the personal library (not in the trash), returns `{ duplicate: true, itemKey }` and imports, records and files nothing (the existing item is not added to `collectionKey`) |
@@ -176,6 +184,9 @@ Every table also has `libraryID`:
 - `owned_objects(itemKey, kind, changeId, createdAt)`
 - `owned_tags(itemKey, tag, changeId, createdAt)`
 - `note_versions(seq, noteKey, html, changeId, savedAt)`
+- `agent_notes(noteKey, html, changeId, writtenAt, userEditedAt)`: what the
+  agent last wrote into each note (create, edit, undo of an edit, notes of an
+  import) and when the user took the note over (Hard rule 1)
 - `changes(seq, changeId, tool, kind, args, data, summary, createdAt, undone, undoneAt)`
 
 `kind` picks the undo handler; `data` holds what undo needs beyond the

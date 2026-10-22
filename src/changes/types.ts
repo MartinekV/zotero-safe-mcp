@@ -16,6 +16,9 @@ export type OwnedTag = { libraryID: number; itemKey: string; tag: string };
 /** A note's HTML as it was before a change (for undo of edit_note). */
 export type NoteVersion = { libraryID: number; noteKey: string; html: string };
 
+/** The HTML the agent last wrote into a note, and whether the user has since taken the note over. */
+export type AgentNote = { html: string; userEdited: boolean };
+
 /** One row of list_changes. */
 export type ChangeSummary = {
   changeId: string;
@@ -53,6 +56,11 @@ export type ChangeWriter = {
   /** Forget an owned pair (when the tag is removed again), so a user re-adding it later owns it. */
   disownTag(t: OwnedTag): void;
   saveNoteVersion(v: NoteVersion): void;
+  /**
+   * The HTML this write left in a note (after its save). Every write that creates or changes a note's
+   * content records it: a later difference means the user edited the note, which makes it theirs.
+   */
+  noteWritten(v: NoteVersion): void;
 };
 
 export type UndoContext = {
@@ -61,6 +69,8 @@ export type UndoContext = {
   disownTag(t: OwnedTag): Promise<void>;
   /** Own a pair (again) under the change being undone, effective with the undo's commit. */
   ownTag(t: OwnedTag): Promise<void>;
+  /** Like ChangeWriter.noteWritten, for an undo that rewrites a note's content. */
+  noteWritten(v: NoteVersion): Promise<void>;
   log(message: string): void;
 };
 
