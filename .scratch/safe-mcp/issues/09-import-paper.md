@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests: identifier validation/normalisation (doi.org URLs? decide and document; file paths, plain URLs, empty, multiple identifiers rejected)
 - [x] Non-existent `collectionKey` fails before any import happens
@@ -31,3 +31,7 @@
   changeId; if that change was undone meanwhile, late attachments are trashed on arrival.
 - No duplicate check (spec doesn't ask; the description says so). Live: DOI 10.1038/nature12373 (PDF) and
   arXiv 1706.03762 (PDF + snapshot + note) import in ~5-7 s headless.
+- **Review fix (2026-10-22):** ownership comes only from what the import created: the ItemSaver instance's
+  `_saveNote`/`_saveAttachment` are wrapped to capture what they return, and its own open-access download is
+  switched off (it doesn't return its attachment); Find Available PDF (open-access sources included) covers
+  that and returns its attachment. Late notes get `agent_notes` rows (`addObjects(…, written)`).

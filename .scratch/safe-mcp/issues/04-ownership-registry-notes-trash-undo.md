@@ -13,7 +13,7 @@ Ownership checks live in one pure module (unit-tested) that every later write ti
 
 **Blocked by:** 01, 03
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests: ownership checks (owned vs foreign item, owned vs pre-existing tag pair), change log / undo ordering, undo of an already-undone change refused
 - [x] Unit tests: rate limiter (window, cap, reads unaffected)
@@ -46,3 +46,6 @@ Ownership checks live in one pure module (unit-tested) that every later write ti
   endpoints are registered: integration tests that toggle the plugin use `setPluginEnabled` (harness),
   which waits for `/safe-mcp`. `get_reader_state.itest.ts`'s selection test is flaky (failed 1 of 3
   runs, also in isolation; unrelated to this ticket).
+- **Review fix (2026-10-22):** `trash` and undo of create/import refused when a target has a child (note,
+  attachment, highlight on an attachment, trashed ones included) that isn't the agent's
+  (`requireNoUserChildren`, `src/ownership/agentOwned.ts`); embedded images of a note count as part of it.

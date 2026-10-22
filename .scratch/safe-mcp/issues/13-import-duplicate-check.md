@@ -4,7 +4,7 @@
 
 **Blocked by:** 09, 12
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests for identifier matching (DOI case, arXiv versions, PMID in Extra, trashed items ignored)
 - [x] Integration test: importing the same DOI twice yields one item

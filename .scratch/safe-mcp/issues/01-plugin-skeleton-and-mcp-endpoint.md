@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done
+**Status:** resolved
 
 - [x] `npm run build` produces `zotero-safe-mcp.xpi`; `npm test` runs unit tests
 - [x] Unit tests: JSON-RPC handling (valid/invalid requests, batch rejected or handled, notifications get 202/no body, unknown method → -32601, bad params → -32602), auth (missing/wrong/right token, constant-time compare)

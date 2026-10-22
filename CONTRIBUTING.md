@@ -11,25 +11,32 @@ addon/                    static plugin files, copied into the .xpi as-is
 src/
   index.ts                bundle entry (esbuild iife → global SafeMcp)
   plugin.ts               lifecycle: token, endpoints, pane, hooks; startup/shutdown
-  config.ts               plugin id, pref names, paths
+  config.ts               plugin id, pref names, paths, key pattern, log prefix (constants go here)
   env.ts                  runtime facts set at startup (version, rootURI, log)
   registry/types.ts       ToolDef, EndpointDef, LifecycleHook, ToolError, HttpRequest/Response
   registry/tools.ts       tool registry: list, validate, dispatch, errors → isError (the ONE place)
   registry/schema.ts      small JSON Schema validator for tool arguments
   http/protect.ts         Origin → 403, bearer token → 401, exceptions → JSON 500 (every endpoint)
+  http/json.ts            jsonResponse / jsonError bodies for endpoints
   http/zoteroEndpoint.ts  adapter to Zotero.Server.Endpoints classes
   mcp/                    JSON-RPC / MCP handling for POST /safe-mcp
   tools/*.ts              one file per MCP tool            ┐ auto-registered: scripts/gen-index.mjs
   endpoints/*.ts          one file per HTTP endpoint       │ writes <dir>/index.generated.ts
   hooks/*.ts              startup/shutdown hooks           │ (gitignored; files named _* are skipped)
   undo/*.ts               one undo handler per change kind ┘
-  changes/                change log + ownership registry (safe-mcp.sqlite attached to Zotero.DB), trash helpers
-  ownership/              ownership checks (agentOwned.ts: wired; userEdits.ts: user take-over of notes), write rate limiter
+  changes/                change log + ownership registry (safe-mcp.sqlite attached to Zotero.DB), trash helpers,
+                          data.ts = each change kind's `data` shape (shared by its tool and undo handler)
+  ownership/              ownership checks (agentOwned.ts: wired, incl. requireNoUserChildren; userEdits.ts: user
+                          take-over of notes), write rate limiter
+  hooks/ownership-watch.ts  Notifier observer: forgets tag pairs removed outside the plugin, records note take-overs
+  util/                   errors.ts (errorMessage/errorDetail), isPlainObject.ts
+  tags/                   tag argument handling, quoteTags
   images/                 POST /safe-mcp/image uploads: PNG/JPEG sniffing + size, in-memory store with caps
-  notes/                  Markdown ↔ note HTML; zoteroLookups.ts = citation/image lookups for create/edit_note
+  notes/                  Markdown ↔ note HTML; canonicalNoteHtml.ts = HTML comparison for user edits; zoteroLookups.ts = citation/image lookups for create/edit_note
                           noteVersions.ts = edit_note's version save/restore; zoteroNotes.ts = embedded images
                           (importEmbeddedImage without its own transaction, for use inside recordWrite)
-  highlight/              add_highlight: color rule, quote → glyph rects (locate.ts, pure), pdf.js loader, annotation save/copy
+  highlight/              add_highlight: color rule, quote → glyph rects (locate.ts, pure), pdf.js loader, annotation save/copy,
+                          [LLM] comment prefix (comment.ts), list_annotations rows (annotationList.ts)
 test/unit/*.test.ts       vitest, plain Node, fake Zotero objects where needed
 test/integration/         *.itest.ts against a real headless Zotero
 scripts/                  build.mjs, gen-index.mjs, run-zotero-headless.sh
@@ -37,8 +44,14 @@ scripts/                  build.mjs, gen-index.mjs, run-zotero-headless.sh
 
 Nothing lists the tools or endpoints by hand. `npm run build`, `npm test` and `npm run typecheck`
 regenerate the index files, so adding a file is enough and parallel branches don't conflict.
-Put shared helpers in their own directory (e.g. `src/zotero/`, `src/ownership/`), not in `src/tools/`,
-or name them with a leading `_`.
+Put shared helpers and types in their own directory (e.g. `src/zotero/`, `src/ownership/`, `src/util/`),
+not in `src/tools/` or `src/undo/`, or name them with a leading `_`. Tool and undo files export only their
+default. Constants (pref names, ports, patterns) live in `src/config.ts`.
+
+Test files are named after what they test: the tool (`<tool_name>`, snake_case), else the src module
+(`<moduleFile>`, spelled as in `src/`), else, for a file spanning several modules or tools of one
+directory, that directory (`tags`, `pdf`, `changes`, `zotero`). Optionally a `.<aspect>` suffix
+(`changeLog.addObjects`). Unit tests end in `.test.ts`, integration tests in `.itest.ts`; no hyphens.
 
 ## Adding a tool
 
@@ -75,7 +88,7 @@ export default defineTool<{ itemKey: string }>({
 - `write: true` marks tools that change the library: read-only hint off, and `registry/tools.ts` `call`
   applies the write rate limit (pref `writesPerMinute`, default 30, checked before the handler so a
   refused call has no side effects) and runs write tools one at a time. See "Adding a write tool".
-- Unit-test pure logic in `test/unit/<tool_name>.test.ts`; test the tool end to end in
+- Unit-test pure logic in `test/unit/<tool_name>.test.ts` (or the module's name, see above); test the tool end to end in
   `test/integration/<tool_name>.itest.ts`.
 
 ## Adding a write tool
@@ -83,6 +96,16 @@ export default defineTool<{ itemKey: string }>({
 Every change to the library goes through `changeLog().recordWrite` (`src/changes/index.ts`), which runs
 your body and records the change in ONE DB transaction with the Zotero saves: a throw anywhere rolls back
 both, so a failed call leaves neither items nor registry rows behind.
+
+The only exceptions are in `import_paper` (`src/import/runImport.ts`, `zoteroPorts.ts`), because Zotero's
+translators open their own transactions and do network I/O:
+- the ItemSaver's save runs outside recordWrite; the change is recorded right after it commits (`record`),
+  and attachments that finish later are added with `changeLog().addObjects` (with `noteWritten` rows
+  for notes). Only objects the saver's own save methods and Find Available PDF return are recorded,
+  never a sweep of the item's children (the user may have added some);
+- if recording fails, or the change was undone before late attachments arrived, those items are
+  trashed in a bare `Zotero.DB.executeTransaction(() => setDeleted(…))`, which is not itself a change.
+Anything else that writes must use recordWrite.
 
 ```ts
 import { changeLog } from "../changes";
@@ -115,7 +138,9 @@ again, `saveNoteVersion` for the HTML before an edit, `data` for any other JSON 
 `summary`. Ownership queries: `changeLog().isOwned`, `ownedKeys`, `ownedTags`; checks that throw a clear
 `ToolError`: `requireOwned`, `requireOwnedTagPairs` (`src/ownership/checks.ts`). For objects, use
 `requireAgentOwned` / `agentOwnedKeys` (`src/ownership/agentOwned.ts`): they also leave out notes the
-user took over by editing them (`src/ownership/userEdits.ts`), and their embedded images. `byLLM` in read results
+user took over by editing them (`src/ownership/userEdits.ts`), and their embedded images. Before
+trashing anything, also call `requireNoUserChildren`: a trashed parent takes its children (notes,
+attachments, highlights on attachments) along, so a target with any child that isn't the agent's is refused. `byLLM` in read results
 always comes from the registry, never from the `[LLM]` tag. Trash, never erase: `setDeleted` in
 `src/changes/trash.ts`.
 
@@ -136,10 +161,13 @@ const handler: UndoHandler = {
 export default handler;
 ```
 
-The change log marks the change undone in the same transaction; a change is undone at most once, and
+`undo` (`src/tools/undo.ts`) first runs `requireUndoable`: refused if the change touches a note the user
+took over, or would trash an object that has children of the user's. The change log marks the change
+undone in the same transaction; a change is undone at most once, and
 undo itself is not recorded as a change. `ctx.disownTag` forgets a pair (do this when undo removes a
-tag, so a user adding it again later owns it). For changes that only created objects,
-`trashCreatedObjects` (`src/undo/create_note.ts`) trashes everything in `change.objects`.
+tag, so a user adding it again later owns it); `ctx.saveNoteVersion` keeps a note's HTML before the undo
+overwrites it. For changes that only created objects,
+`trashCreatedObjects` (`src/changes/trash.ts`) trashes everything in `change.objects`.
 Unit-test changes against a real SQLite with `test/unit/sqliteDb.ts` (see `changeLog.test.ts`).
 
 ## Adding an HTTP endpoint

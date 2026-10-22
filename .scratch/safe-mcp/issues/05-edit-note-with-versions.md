@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** done
+**Status:** resolved
 
 - [x] Editing a user's note is refused
 - [x] Unit tests for version save/restore logic; undo of edit then undo of create works in order

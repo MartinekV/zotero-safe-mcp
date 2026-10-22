@@ -6,7 +6,7 @@ User decision 2026-10-22 (overrides the earlier rejection of SPEC suggestion #5)
 
 **Blocked by:** 05, 13
 
-**Status:** done
+**Status:** resolved
 
 - [x] Unit tests for the ownership check with a user-edited note
 - [x] Integration test: agent creates note → user edits via Zotero (`setNote`/`saveTx` through the eval plugin) → edit_note, trash, undo all refused; byLLM false
@@ -37,3 +37,8 @@ User decision 2026-10-22 (overrides the earlier rejection of SPEC suggestion #5)
 - `edit_note.itest.ts` used to add images by editing the note's HTML through Zotero; that is now a user edit,
   so its tests add images via POST /safe-mcp/image instead. The old "changed in Zotero after" undo refusal
   remains in `editNoteUndoHandler` as a backstop, but tools now refuse earlier with the take-over message.
+- **Review fix (2026-10-22):** comparison is now canonical HTML (`src/notes/canonicalNoteHtml.ts`), not
+  Markdown: verified headless that the note editor doesn't save an agent note on open/close, so formatting-only
+  edits count. Undo of edit_note keeps the HTML it replaces as a note version. A Notifier observer
+  (`src/hooks/ownership-watch.ts`) records take-overs at save time and forgets tag pairs the user removes; the
+  lazy check stays for edits made while the plugin was disabled.

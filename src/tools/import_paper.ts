@@ -1,4 +1,4 @@
-import { KEY_PATTERN } from "../config";
+import { IMPORT_ATTACHMENT_TIMEOUT_MS as ATTACHMENT_TIMEOUT_MS, IMPORT_LOOKUP_TIMEOUT_MS as LOOKUP_TIMEOUT_MS, KEY_PATTERN } from "../config";
 import { parseIdentifier } from "../import/identifier";
 import { runImport } from "../import/runImport";
 import { zoteroImportPorts } from "../import/zoteroPorts";
@@ -8,9 +8,6 @@ import { libraryID, requireCollection, requireItem } from "../zotero/library";
 
 type Args = { identifier: string; collectionKey?: string };
 
-/** Budgets (see src/import/runImport.ts): the call holds the write queue for at most about their sum. */
-export const LOOKUP_TIMEOUT_MS = 30_000;
-export const ATTACHMENT_TIMEOUT_MS = 30_000;
 
 export default defineTool<Args>({
   name: "import_paper",

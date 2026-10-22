@@ -4,7 +4,7 @@
 
 **Blocked by:** 02, 05, 06, 08, 09, 10, 11
 
-**Status:** done
+**Status:** resolved
 
 - [x] `npm run build && npm test` green
 - [x] Every reused file carries a header naming its llm-for-zotero source file

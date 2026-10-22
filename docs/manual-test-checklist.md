@@ -55,6 +55,7 @@ Tick each box when it behaves as described. "Refused" means an `isError` result 
 - [ ] `read_pdf_text {"attachmentKey":"<pdf>","pages":"1-2"}`: text of pages 1-2.
 - [ ] `get_pdf_url`, then `curl -H "Authorization: Bearer $T" -o x.pdf <url>` gives the same file
       (`cmp` with the original). Without the token → 401. `$Z/safe-mcp/pdf/../../etc` → 400 or 404.
+      A text file attached and renamed `x.pdf` (stored as PDF but no `%PDF-` header) → 404.
 - [ ] `list_annotations {"attachmentKey":"<pdf>"}`: your two highlights with their colors, `byLLM: false`.
 - [ ] `list_notes {"itemKey":"<paper>"}`: your note as Markdown, `byLLM: false`.
 - [ ] `get_reader_state` with the library tab selected → `open: false`. Open the PDF, go to page 3,
@@ -107,11 +108,20 @@ For each: check the result in Zotero, then `undo {"changeId":"<id>"}` and check 
       the edit and of the creation are refused with "you edited this note in Zotero; it is now yours";
       `list_notes` shows `byLLM: false`. Delete your word again: still refused. `remove_tags` of a tag the
       agent added to that note still works.
+- [ ] Formatting only: have the agent create and edit another note, then only underline a word (or colour
+      it) in Zotero, and delete nothing. `undo` of the edit is refused and your underline stays.
+- [ ] A note you edited and reverted before the agent looked: have the agent create a note, type a word into
+      it, close the editor, delete the word again. `edit_note` of it is refused.
+- [ ] Your additions to the agent's paper: import a paper with a PDF, then add your own child note to it and a
+      highlight in its PDF. `trash` of the paper, `trash` of the PDF and `undo` of the import are refused and
+      name your note and highlight; nothing goes to the Trash.
 - [ ] Trashing your note, your highlight, your paper and its PDF: `trash` with each key, and once with one
       of yours mixed into a list of the agent's (nothing at all is trashed).
 - [ ] Removing your tag: `remove_tags {"itemKey":"<paper>","tags":["mine"]}`.
 - [ ] Removing a tag you added by hand after the agent added the same name earlier (add `t2` via
       `add_tags`, `remove_tags` it, add `t2` by hand) → `remove_tags t2` refused.
+- [ ] Same, but you remove the agent's tag yourself: `add_tags t3`, remove `t3` by hand in Zotero, add `t3`
+      by hand again → `remove_tags t3` refused, and `undo` of the `add_tags` leaves `t3` on the item.
 - [ ] `[LLM]` tag: `add_tags` with `[LLM]` on your paper; `remove_tags` of `[LLM]` from the agent's note.
 - [ ] File path import: `import_paper` with `/Users/me/paper.pdf`, `file:///tmp/x.pdf`, `C:\x.pdf`.
 - [ ] URL import: `https://doi.org/10.1038/nature12373`, `https://arxiv.org/abs/1706.03762`.

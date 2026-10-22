@@ -22,3 +22,9 @@ export const DEFAULT_WRITES_PER_MINUTE = 30;
 export const LLM_TAG = "[LLM]";
 /** POST an image (PNG/JPEG bytes) here to use it in a note as ![caption](image:<imageId>). */
 export const IMAGE_PATH = `${MCP_PATH}/image`;
+/** import_paper budgets (see src/import/runImport.ts): a call holds the write queue for at most about their sum. */
+export const IMPORT_LOOKUP_TIMEOUT_MS = 30_000;
+export const IMPORT_ATTACHMENT_TIMEOUT_MS = 30_000;
+/** search_library's default and maximum `limit`. */
+export const SEARCH_DEFAULT_LIMIT = 25;
+export const SEARCH_MAX_LIMIT = 100;
