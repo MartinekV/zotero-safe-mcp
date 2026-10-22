@@ -11,9 +11,10 @@ let pdfKey: string;
 let missingFileKey: string;
 let textKey: string;
 let noteKey: string;
+let fakePdfKey: string;
 
 beforeAll(async () => {
-  ({ pdfKey, missingFileKey, textKey, noteKey } = await zeval(`
+  ({ pdfKey, missingFileKey, textKey, noteKey, fakePdfKey } = await zeval(`
     const parent = new Zotero.Item("book"); parent.setField("title", "Wonderland (pdf tools test)"); await parent.saveTx();
     const pdf = await Zotero.Attachments.importFromFile({ file: ${JSON.stringify(PDF)}, parentItemID: parent.id });
     await Zotero.Fulltext.indexItems([pdf.id], { complete: true, ignoreErrors: true });
@@ -26,7 +27,13 @@ beforeAll(async () => {
     const txt = await Zotero.Attachments.importFromFile({ file: txtPath, parentItemID: parent.id });
 
     const note = new Zotero.Item("note"); note.parentID = parent.id; note.setNote("<p>n</p>"); await note.saveTx();
-    return { pdfKey: pdf.key, missingFileKey: gone.key, textKey: txt.key, noteKey: note.key };
+
+    // Stored as application/pdf, but the file isn't one.
+    const fakePath = PathUtils.join(PathUtils.tempDir, "safe-mcp-itest-fake.pdf");
+    await IOUtils.writeUTF8(fakePath, "not a pdf at all");
+    const fake = await Zotero.Attachments.importFromFile({ file: fakePath, parentItemID: parent.id, contentType: "application/pdf" });
+    fake.attachmentContentType = "application/pdf"; await fake.saveTx();
+    return { pdfKey: pdf.key, missingFileKey: gone.key, textKey: txt.key, noteKey: note.key, fakePdfKey: fake.key };
   `));
 });
 
@@ -50,8 +57,8 @@ describe("GET /safe-mcp/pdf/<key>", () => {
     expect(res.bytes.subarray(0, 4).toString()).not.toBe("%PDF");
   });
 
-  it("answers 404 for unknown keys, non-attachments, non-PDFs and missing files", async () => {
-    for (const key of ["ZZZZZZZZ", noteKey, textKey, missingFileKey]) {
+  it("answers 404 for unknown keys, non-attachments, non-PDFs (by type or by content) and missing files", async () => {
+    for (const key of ["ZZZZZZZZ", noteKey, textKey, missingFileKey, fakePdfKey]) {
       const res = await request(`/safe-mcp/pdf/${key}`);
       expect(res.status, key).toBe(404);
       expect(JSON.parse(res.body).error).toBeTypeOf("string");
